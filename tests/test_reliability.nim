@@ -34,21 +34,23 @@ suite "ReliabilityManager":
   test "callbacks":
     var messageReadyCount = 0
     var messageSentCount = 0
-    var periodicSyncCount = 0
+    var missingDepsCount = 0
 
     rm.setCallbacks(
       proc(messageId: MessageID) = messageReadyCount += 1,
       proc(messageId: MessageID) = messageSentCount += 1,
-      proc() = periodicSyncCount += 1
+      proc(messageId: MessageID, missingDeps: seq[MessageID]) = missingDepsCount += 1
     )
 
-    let msg = rm.wrapOutgoingMessage("Test callback")
-    discard rm.unwrapReceivedMessage(msg)
+    let msg1 = rm.wrapOutgoingMessage("Message 1")
+    let msg2 = rm.wrapOutgoingMessage("Message 2")
+    discard rm.unwrapReceivedMessage(msg1)
+    discard rm.unwrapReceivedMessage(msg2)
 
     check:
-      messageReadyCount == 1
+      messageReadyCount == 2
       messageSentCount == 0  # This would be triggered by the checkUnacknowledgedMessages function
-      periodicSyncCount == 0  # This would be triggered by the periodicSync function
+      missingDepsCount == 0
 
   test "lamport timestamps":
     let msg1 = rm.wrapOutgoingMessage("Message 1")
@@ -77,3 +79,32 @@ suite "ReliabilityManager":
 
     let (_, missingDeps2) = rm.unwrapReceivedMessage(msg1)
     check missingDeps2.len == 0  # The message should be in the bloom filter and not processed again
+
+  test "message history limit":
+    for i in 1..MaxMessageHistory + 10:
+      let msg = rm.wrapOutgoingMessage($i)
+      discard rm.unwrapReceivedMessage(msg)
+
+    check rm.messageHistory.len <= MaxMessageHistory
+
+  test "missing dependencies callback":
+    var missingDepsReceived: seq[MessageID] = @[]
+    rm.setCallbacks(
+      proc(messageId: MessageID) = discard,
+      proc(messageId: MessageID) = discard,
+      proc(messageId: MessageID, missingDeps: seq[MessageID]) = missingDepsReceived = missingDeps
+    )
+
+    let msg1 = rm.wrapOutgoingMessage("Message 1")
+    let msg2 = rm.wrapOutgoingMessage("Message 2")
+    let msg3 = Message(
+      messageId: generateUniqueID(),
+      lamportTimestamp: msg2.lamportTimestamp + 1,
+      causalHistory: @[msg1.messageId, msg2.messageId],
+      content: "Message 3"
+    )
+
+    discard rm.unwrapReceivedMessage(msg3)
+    check missingDepsReceived.len == 2
+    check missingDepsReceived.contains(msg1.messageId)
+    check missingDepsReceived.contains(msg2.messageId)
