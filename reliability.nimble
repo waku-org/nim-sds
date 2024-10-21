@@ -6,9 +6,9 @@ license       = "MIT"
 srcDir        = "src"
 
 # Dependencies
-requires "nim >= 1.6.0"
-requires "nimsha2"
+requires "nim >= 2.0.8"
 requires "chronicles"
 
+# Tasks
 task test, "Run the test suite":
   exec "nim c -r tests/test_reliability.nim"
