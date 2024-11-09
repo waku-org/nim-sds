@@ -1,0 +1,7 @@
+nimcache
+nimcache/*
+tests/test
+bloom
+*.html
+*.css
+/.DS_Store
