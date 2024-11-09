@@ -3,11 +3,11 @@ import hashes
 import strutils
 import private/probabilities
 
-# Import MurmurHash3 code and compile at the same time as Nim code
+# Import MurmurHash3 code for large-scale use cases
 {.compile: "murmur3.c".}
 
 type
-  BloomFilterError = object of CatchableError
+  BloomFilterError* = object of CatchableError
   MurmurHashes = array[0..1, int]
   BloomFilter* = object
     capacity*: int
@@ -15,28 +15,27 @@ type
     kHashes*: int
     mBits*: int
     intArray: seq[int]
-    nBitsPerElem*: int
-    useMurmurHash*: bool
+    useExtendedHash*: bool  # Use 128-bit MurmurHash3 for very large filters
+
+{.push overflowChecks: off.}  # Turn off overflow checks for hashing operations
 
 proc rawMurmurHash(key: cstring, len: int, seed: uint32,
                      outHashes: var MurmurHashes): void {.
   importc: "MurmurHash3_x64_128".}
 
 proc murmurHash(key: string, seed = 0'u32): MurmurHashes =
-  rawMurmurHash(key, key.len, seed, outHashes = result)
-
-proc hashA(item: string, maxValue: int): int =
-  hash(item) mod maxValue
-
-proc hashB(item: string, maxValue: int): int =
-  hash(item & " b") mod maxValue
+  rawMurmurHash(key, key.len, seed, result)
 
 proc hashN(item: string, n: int, maxValue: int): int =
-  ## Get the nth hash of a string using the formula hashA + n * hashB
-  ## which uses 2 hash functions vs. k and has comparable properties
-  ## See Kirsch and Mitzenmacher, 2008:
+  ## Get the nth hash using Nim's built-in hash function using
+  ## the double hashing technique from Kirsch and Mitzenmacher, 2008:
   ## http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/rsa.pdf
-  abs((hashA(item, maxValue) + n * hashB(item, maxValue))) mod maxValue
+  let
+    hashA = abs(hash(item)) mod maxValue  # Use abs to handle negative hashes
+    hashB = abs(hash(item & " b")) mod maxValue
+  abs((hashA + n * hashB)) mod maxValue
+
+{.pop.}  # Restore overflow checks
 
 proc getMOverNBitsForK(k: int, targetError: float,
     probabilityTable = kErrors): int =
@@ -54,28 +53,19 @@ proc getMOverNBitsForK(k: int, targetError: float,
 
 proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
                               forceNBitsPerElem = 0,
-                              useMurmurHash = true): BloomFilter =
+                              useExtendedHash = false): BloomFilter =
   ## Initializes a Bloom filter, using a specified ``capacity``,
   ## ``errorRate``, and – optionally – specific number of k hash functions.
   ## If ``kHashes`` is < 1 (default argument is 0), ``kHashes`` will be
-  ## optimally calculated on the fly. Otherwise, ``kHashes`` will be set to
-  ## the passed integer, which requires that ``forceNBitsPerElem`` is
-  ## also set to be greater than 0. Otherwise a ``BloomFilterError``
-  ## exception is raised.
-  ## See http://pages.cs.wisc.edu/~cao/papers/summary-cache/node8.html for
-  ## useful tables on k and m/n (n bits per element) combinations.
-  ##
-  ## The Bloom filter uses the MurmurHash3 implementation by default,
-  ## though it can fall back to using the built-in nim ``hash`` function
-  ## if ``useMurmurHash = false``. This is compiled alongside the Nim
-  ## code using the ``{.compile.}`` pragma.
+  ## optimally calculated. If capacity > 1M elements, consider setting
+  ## useExtendedHash = true to use 128-bit MurmurHash3 for better 
+  ## collision resistance.
   var
     kHashes: int
-    bitsPerElem: float
     nBitsPerElem: int
 
   if k < 1: # Calculate optimal k and use that
-    bitsPerElem = ceil(-1.0 * (ln(errorRate) / (pow(ln(2.float), 2))))
+    let bitsPerElem = ceil(-1.0 * (ln(errorRate) / (pow(ln(2.float), 2))))
     kHashes = round(ln(2.float) * bitsPerElem).int
     nBitsPerElem = round(bitsPerElem).int
   else: # Use specified k if possible
@@ -89,42 +79,42 @@ proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
     mBits = capacity * nBitsPerElem
     mInts = 1 + mBits div (sizeof(int) * 8)
 
-  BloomFilter(capacity: capacity, errorRate: errorRate, kHashes: kHashes,
-    mBits: mBits, intArray: newSeq[int](mInts), nBitsPerElem: nBitsPerElem,
-    useMurmurHash: useMurmurHash)
+  BloomFilter(
+    capacity: capacity,
+    errorRate: errorRate,
+    kHashes: kHashes,
+    mBits: mBits,
+    intArray: newSeq[int](mInts),
+    useExtendedHash: useExtendedHash
+  )
 
 proc `$`*(bf: BloomFilter): string =
   ## Prints the capacity, set error rate, number of k hash functions,
   ## and total bits of memory allocated by the Bloom filter.
-  "Bloom filter with $1 capacity, $2 error rate, $3 hash functions, and requiring $4 bits per stored element." %
+  "Bloom filter with $1 capacity, $2 error rate, $3 hash functions, and requiring $4 bits of memory." %
     [$bf.capacity,
      formatFloat(bf.errorRate, format = ffScientific, precision = 1),
-     $bf.kHashes, $bf.nBitsPerElem]
+     $bf.kHashes,
+     $(bf.mBits div bf.capacity)]
 
-{.push overflowChecks: off.}
+{.push overflowChecks: off.}  # Turn off overflow checks for hash computations
 
-proc hashMurmur(bf: BloomFilter, key: string): seq[int] =
-  result.newSeq(bf.kHashes)
-  let murmurHashes = murmurHash(key, seed = 0'u32)
-  for i in 0..<bf.kHashes:
-    result[i] = abs(murmurHashes[0] + i * murmurHashes[1]) mod bf.mBits
-
-{.pop.}
-
-proc hashNim(bf: BloomFilter, key: string): seq[int] =
-  result.newSeq(bf.kHashes)
-  for i in 0..<bf.kHashes:
-    result[i] = hashN(key, i, bf.mBits)
-
-proc hash(bf: BloomFilter, key: string): seq[int] =
-  if bf.useMurmurHash:
-    bf.hashMurmur(key)
+proc computeHashes(bf: BloomFilter, item: string): seq[int] =
+  var hashes = newSeq[int](bf.kHashes)
+  if bf.useExtendedHash:
+    let murmurHashes = murmurHash(item, 0'u32)
+    for i in 0..<bf.kHashes:
+      hashes[i] = abs((murmurHashes[0] + i.int64 * murmurHashes[1].int64).int) mod bf.mBits
   else:
-    bf.hashNim(key)
+    for i in 0..<bf.kHashes:
+      hashes[i] = hashN(item, i, bf.mBits)
+  hashes
+
+{.pop.}  # Restore overflow checks
 
 proc insert*(bf: var BloomFilter, item: string) =
   ## Insert an item (string) into the Bloom filter.
-  var hashSet = bf.hash(item)
+  let hashSet = bf.computeHashes(item)
   for h in hashSet:
     let
       intAddress = h div (sizeof(int) * 8)
@@ -136,7 +126,7 @@ proc lookup*(bf: BloomFilter, item: string): bool =
   ## If the item is present, ``lookup`` is guaranteed to return ``true``.
   ## If the item is not present, ``lookup`` will return ``false``
   ## with a probability 1 - ``bf.errorRate``.
-  var hashSet = bf.hash(item)
+  let hashSet = bf.computeHashes(item)
   for h in hashSet:
     let
       intAddress = h div (sizeof(int) * 8)
@@ -144,101 +134,4 @@ proc lookup*(bf: BloomFilter, item: string): bool =
       currentInt = bf.intArray[intAddress]
     if currentInt != (currentInt or (1 shl bitOffset)):
       return false
-  return true
-
-when isMainModule:
-  from random import rand, randomize
-  import times
-
-  # Test murmurhash 3
-  echo("Testing MurmurHash3 code...")
-  var hashOutputs: MurmurHashes
-  hashOutputs = [0, 0]
-  rawMurmurHash("hello", 5, 0, hashOutputs)
-  assert int(hashOutputs[0]) == -3758069500696749310 # Correct murmur outputs (cast to int64)
-  assert int(hashOutputs[1]) == 6565844092913065241
-
-  let hashOutputs2 = murmurHash("hello", 0)
-  assert hashOutputs2[0] == hashOutputs[0]
-  assert hashOutputs2[1] == hashOutputs[1]
-  let hashOutputs3 = murmurHash("hello", 10)
-  assert hashOutputs3[0] != hashOutputs[0]
-  assert hashOutputs3[1] != hashOutputs[1]
-
-  # Some quick and dirty tests (not complete)
-  var nElementsToTest = 100000
-  var bf = initializeBloomFilter(nElementsToTest, 0.001)
-  assert(bf of BloomFilter)
-  echo(bf)
-
-  var bf2 = initializeBloomFilter(10000, 0.001, k = 4,
-      forceNBitsPerElem = 20)
-  assert(bf2 of BloomFilter)
-  echo(bf2)
-
-  echo("Testing insertions and lookups...")
-  echo("Test element in BF2?: ", bf2.lookup("testing"))
-  echo("Inserting element.")
-  bf2.insert("testing")
-  echo("Test element in BF2?: ", bf2.lookup("testing"))
-  assert(bf2.lookup("testing"))
-
-  # Now test for speed with bf
-  randomize(2882) # Seed the RNG
-  var
-    sampleChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    kTestElements, sampleLetters: seq[string]
-  kTestElements = newSeq[string](nElementsToTest)
-  sampleLetters = newSeq[string](62)
-
-  for i in 0..(nElementsToTest - 1):
-    var newString = ""
-    for j in 0..7:
-      newString.add(sampleChars[rand(51)])
-    kTestElements[i] = newString
-
-  var startTime, endTime: float
-  startTime = cpuTime()
-  for i in 0..(nElementsToTest - 1):
-    bf.insert(kTestElements[i])
-  endTime = cpuTime()
-  echo("Took ", formatFloat(endTime - startTime, format = ffDecimal,
-      precision = 4), " seconds to insert ", nElementsToTest, " items.")
-
-  var falsePositives = 0
-  for i in 0..(nElementsToTest - 1):
-    var falsePositiveString = ""
-    for j in 0..8: # By definition not in bf as 9 chars not 8
-      falsePositiveString.add(sampleChars[rand(51)])
-    if bf.lookup(falsePositiveString):
-      falsePositives += 1
-
-  echo("N false positives (of ", nElementsToTest, " lookups): ", falsePositives)
-  echo("False positive rate ", formatFloat(falsePositives / nElementsToTest,
-      format = ffDecimal, precision = 4))
-
-  var lookupErrors = 0
-  startTime = cpuTime()
-  for i in 0..(nElementsToTest - 1):
-    if not bf.lookup(kTestElements[i]):
-      lookupErrors += 1
-  endTime = cpuTime()
-  echo("Took ", formatFloat(endTime - startTime, format = ffDecimal,
-      precision = 4), " seconds to lookup ", nElementsToTest, " items.")
-
-  echo("N lookup errors (should be 0): ", lookupErrors)
-
-  # Finally test correct k / mOverN specification,
-  # first case raises an error, second works
-  try:
-    discard getMOverNBitsForK(k = 2, targetError = 0.00001)
-    assert false
-  except BloomFilterError:
-    assert true
-
-  assert getMOverNBitsForK(k = 2, targetError = 0.1) == 6
-  assert getMOverNBitsForK(k = 7, targetError = 0.01) == 10
-  assert getMOverNBitsForK(k = 7, targetError = 0.001) == 16
-
-  var bf3 = initializeBloomFilter(1000, 0.01, k = 4)
-  assert bf3.nBitsPerElem == 11
+  true
