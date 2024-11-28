@@ -15,10 +15,21 @@ proc newRollingBloomFilter*(capacity: int, errorRate: float, window: Duration): 
     return err[RollingBloomFilter](reInternalError)
 
 proc add*(rbf: var RollingBloomFilter, messageId: MessageID) =
+  ## Adds a message ID to the rolling bloom filter.
+  ##
+  ## Parameters:
+  ##   - messageId: The ID of the message to add.
   rbf.filter.insert(messageId)
   rbf.messages.add(TimestampedMessageID(id: messageId, timestamp: getTime()))
 
 proc contains*(rbf: RollingBloomFilter, messageId: MessageID): bool =
+  ## Checks if a message ID is in the rolling bloom filter.
+  ##
+  ## Parameters:
+  ##   - messageId: The ID of the message to check.
+  ##
+  ## Returns:
+  ##   True if the message ID is probably in the filter, false otherwise.
   rbf.filter.lookup(messageId)
 
 proc clean*(rbf: var RollingBloomFilter) =
@@ -53,6 +64,13 @@ proc generateUniqueID*(): MessageID =
   result = $hash($timestamp & $randomPart)
 
 proc serializeMessage*(msg: Message): Result[string] =
+  ## Serializes a Message object to a JSON string.
+  ##
+  ## Parameters:
+  ##   - msg: The Message object to serialize.
+  ##
+  ## Returns:
+  ##   A Result containing either the serialized JSON string or an error.
   try:
     let jsonNode = %*{
       "senderId": msg.senderId,
@@ -67,6 +85,13 @@ proc serializeMessage*(msg: Message): Result[string] =
     return err[string](reSerializationError)
 
 proc deserializeMessage*(data: string): Result[Message] =
+  ## Deserializes a JSON string to a Message object.
+  ##
+  ## Parameters:
+  ##   - data: The JSON string to deserialize.
+  ##
+  ## Returns:
+  ##   A Result containing either the deserialized Message object or an error.
   try:
     let jsonNode = parseJson(data)
     return ok(Message(
@@ -81,14 +106,26 @@ proc deserializeMessage*(data: string): Result[Message] =
     return err[Message](reDeserializationError)
 
 proc getMessageHistory*(rm: ReliabilityManager): seq[MessageID] =
+  ## Retrieves the current message history from the ReliabilityManager.
+  ##
+  ## Returns:
+  ##   A sequence of MessageIDs representing the current message history.
   withLock rm.lock:
     return rm.messageHistory
 
 proc getOutgoingBufferSize*(rm: ReliabilityManager): int =
+  ## Returns the current size of the outgoing message buffer.
+  ##
+  ## Returns:
+  ##   The number of messages in the outgoing buffer.
   withLock rm.lock:
     return rm.outgoingBuffer.len
 
 proc getIncomingBufferSize*(rm: ReliabilityManager): int =
+  ## Returns the current size of the incoming message buffer.
+  ##
+  ## Returns:
+  ##   The number of messages in the incoming buffer.
   withLock rm.lock:
     return rm.incomingBuffer.len
 
@@ -101,6 +138,17 @@ proc logInfo*(msg: string) =
   info "ReliabilityInfo", message = msg
 
 proc checkAndLogError*[T](res: Result[T], errorMsg: string): T =
+  ## Checks the result of an operation, logs any errors, and returns the value or raises an exception.
+  ##
+  ## Parameters:
+  ##   - res: A Result[T] object to check.
+  ##   - errorMsg: A message to log if an error occurred.
+  ##
+  ## Returns:
+  ##   The value contained in the Result if it was successful.
+  ##
+  ## Raises:
+  ##   An exception with the error message if the Result contains an error.
   if res.isOk:
     return res.value
   else:
