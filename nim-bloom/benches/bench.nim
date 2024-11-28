@@ -83,7 +83,7 @@ proc runBenchmark(size: int, errorRate: float, pattern: DataPattern, name: strin
   let murmur32Result = benchmarkHashType(htMurmur32, size, errorRate, data, lookupData)
   
   # Print individual results
-  printResults("Nim's Default (Farm Hash)", nimHashResult, size, lookupData.len)
+  printResults("Nim's Hash (Farm Hash)", nimHashResult, size, lookupData.len)
   printResults("MurmurHash3_128", murmur128Result, size, lookupData.len)
   printResults("MurmurHash3_32", murmur32Result, size, lookupData.len)
   

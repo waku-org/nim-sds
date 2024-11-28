@@ -10,7 +10,7 @@ type
   HashType* = enum
     htMurmur128,  # Default: MurmurHash3_x64_128
     htMurmur32,   # MurmurHash3_x86_32
-    htNimHash  # Nim's Default Hash (currently Farm Hash)
+    htNimHash  # Nim's Hash (currently Farm Hash)
 
   BloomFilterError* = object of CatchableError
   
@@ -35,7 +35,9 @@ proc rawMurmurHash32(key: cstring, len: int, seed: uint32,
   importc: "MurmurHash3_x86_32".}
 
 proc murmurHash128(key: string, seed = 0'u32): MurmurHashes =
-  rawMurmurHash128(key, key.len, seed, result)
+  var hashResult: MurmurHashes
+  rawMurmurHash128(key, key.len, seed, hashResult)
+  hashResult
 
 proc murmurHash32(key: string, seed = 0'u32): uint32 =
   var result: uint32
@@ -88,7 +90,7 @@ proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
   ## - hashType: Choose hash function:
   ##   * htMurmur128: MurmurHash3_x64_128 (default) - recommended
   ##   * htMurmur32: MurmurHash3_x86_32
-  ##   * htNimHash: Nim's Default Hash
+  ##   * htNimHash: Nim's Hash
   var
     kHashes: int
     nBitsPerElem: int

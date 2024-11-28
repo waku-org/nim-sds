@@ -3,7 +3,7 @@
 Size: 10000 items
 Pattern: dpRandom
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.004986000000000001s (2005615.724027276 ops/sec)
   Lookup time: 0.00238s (2100840.336134454 ops/sec)
   False positives: 43 (0.86%)
@@ -36,7 +36,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpRandom
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.050316s (1987439.383098816 ops/sec)
   Lookup time: 0.02490799999999999s (2007387.184840213 ops/sec)
   False positives: 406 (0.8120000000000001%)
@@ -69,7 +69,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpRandom
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.522163s (1915110.798735261 ops/sec)
   Lookup time: 0.257452s (1942109.597128785 ops/sec)
   False positives: 4130 (0.826%)
@@ -102,7 +102,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpSequential
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.004666000000000059s (2143163.309044122 ops/sec)
   Lookup time: 0.002341000000000149s (2135839.384878122 ops/sec)
   False positives: 51 (1.02%)
@@ -135,7 +135,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpSequential
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.0480590000000003s (2080775.713185863 ops/sec)
   Lookup time: 0.02284599999999992s (2188566.926376616 ops/sec)
   False positives: 446 (0.8920000000000001%)
@@ -168,7 +168,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpSequential
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.4705080000000001s (2125362.374284815 ops/sec)
   Lookup time: 0.233136s (2144670.921693775 ops/sec)
   False positives: 4024 (0.8048%)
@@ -201,7 +201,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpFixed
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.004584000000000366s (2181500.872600175 ops/sec)
   Lookup time: 0.002313999999999705s (2160760.587727155 ops/sec)
   False positives: 35 (0.7000000000000001%)
@@ -234,7 +234,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpFixed
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.04620999999999986s (2164033.758926646 ops/sec)
   Lookup time: 0.02306600000000003s (2167692.707881728 ops/sec)
   False positives: 433 (0.8659999999999999%)
@@ -267,7 +267,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpFixed
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.4785590000000002s (2089606.506198817 ops/sec)
   Lookup time: 0.2445870000000001s (2044262.368809462 ops/sec)
   False positives: 4085 (0.8170000000000001%)
@@ -300,7 +300,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpLong
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.008112999999999815s (1232589.670898586 ops/sec)
   Lookup time: 0.003777000000000363s (1323801.959226772 ops/sec)
   False positives: 40 (0.8%)
@@ -333,7 +333,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpLong
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.07904900000000037s (1265038.140899942 ops/sec)
   Lookup time: 0.04046299999999992s (1235696.809430841 ops/sec)
   False positives: 404 (0.8080000000000001%)
@@ -366,7 +366,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpLong
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.814165s (1228252.25844884 ops/sec)
   Lookup time: 0.4165090000000005s (1200454.251888913 ops/sec)
   False positives: 4039 (0.8078%)
@@ -399,7 +399,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpSpecial
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.007111000000000089s (1406271.97299956 ops/sec)
   Lookup time: 0.003309000000000673s (1511030.522816254 ops/sec)
   False positives: 51 (1.02%)
@@ -432,7 +432,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpSpecial
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.05804300000000051s (1722860.637802993 ops/sec)
   Lookup time: 0.03600399999999837s (1388734.585046169 ops/sec)
   False positives: 368 (0.736%)
@@ -465,7 +465,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpSpecial
 
-Nim's Default (MurmurHash3_32) Results:
+Nim's Hash (MurmurHash3_32) Results:
   Insert time: 0.5143779999999989s (1944095.58729184 ops/sec)
   Lookup time: 0.2718509999999998s (1839242.820515651 ops/sec)
   False positives: 4222 (0.8444%)

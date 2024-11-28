@@ -1,9 +1,7 @@
 import unittest
-import sets
 import strutils
 include bloom
 from random import rand, randomize
-import times
 
 suite "murmur":
   # Test murmurhash3 implementations
@@ -124,7 +122,7 @@ suite "bloom filter":
         falsePositives.inc
 
     let actualErrorRate = falsePositives.float / testSize.float
-    check actualErrorRate < bf.errorRate * 2.0  # Allow some margin
+    check actualErrorRate < bf.errorRate * 1.5  # Allow some margin
     
   test "perfect recall":
     var lookupErrors = 0

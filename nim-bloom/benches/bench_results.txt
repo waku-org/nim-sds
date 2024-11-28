@@ -3,7 +3,7 @@
 Size: 10000 items
 Pattern: dpRandom
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.006714000000000001s (1489425.081918379 ops/sec)
   Lookup time: 0.003387999999999995s (1475796.930342387 ops/sec)
   False positives: 51 (1.02%)
@@ -36,7 +36,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpRandom
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.04622000000000001s (2163565.556036348 ops/sec)
   Lookup time: 0.02333199999999999s (2142979.59883422 ops/sec)
   False positives: 402 (0.804%)
@@ -69,7 +69,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpRandom
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.4711130000000001s (2122632.998877127 ops/sec)
   Lookup time: 0.2430289999999999s (2057367.639252929 ops/sec)
   False positives: 4104 (0.8208%)
@@ -102,7 +102,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpSequential
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.004508000000000179s (2218278.615794056 ops/sec)
   Lookup time: 0.002232000000000012s (2240143.369175615 ops/sec)
   False positives: 42 (0.84%)
@@ -135,7 +135,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpSequential
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.04492400000000019s (2225981.65791113 ops/sec)
   Lookup time: 0.02218900000000001s (2253368.78633557 ops/sec)
   False positives: 436 (0.872%)
@@ -168,7 +168,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpSequential
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.4540329999999999s (2202483.079423743 ops/sec)
   Lookup time: 0.2223580000000003s (2248626.089459338 ops/sec)
   False positives: 4037 (0.8074%)
@@ -201,7 +201,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpFixed
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.004486999999999686s (2228660.574994585 ops/sec)
   Lookup time: 0.002098999999999851s (2382086.707956339 ops/sec)
   False positives: 43 (0.86%)
@@ -234,7 +234,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpFixed
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.04369800000000001s (2288434.253283903 ops/sec)
   Lookup time: 0.02203400000000011s (2269220.295906316 ops/sec)
   False positives: 411 (0.822%)
@@ -267,7 +267,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpFixed
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.4461910000000002s (2241192.673092912 ops/sec)
   Lookup time: 0.2275340000000003s (2197473.784137752 ops/sec)
   False positives: 4084 (0.8168%)
@@ -300,7 +300,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpLong
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.009589999999999321s (1042752.86757046 ops/sec)
   Lookup time: 0.005217000000000027s (958405.2137243577 ops/sec)
   False positives: 39 (0.7799999999999999%)
@@ -333,7 +333,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpLong
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.09930899999999987s (1006958.080335117 ops/sec)
   Lookup time: 0.04954899999999984s (1009102.100950577 ops/sec)
   False positives: 393 (0.786%)
@@ -366,7 +366,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpLong
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 1.032455000000001s (968565.2159174002 ops/sec)
   Lookup time: 0.5242619999999993s (953721.6124762058 ops/sec)
   False positives: 4143 (0.8286%)
@@ -399,7 +399,7 @@ Comparison (higher means better/faster):
 Size: 10000 items
 Pattern: dpSpecial
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.005548999999998472s (1802126.509281448 ops/sec)
   Lookup time: 0.002686999999999884s (1860811.313732868 ops/sec)
   False positives: 39 (0.7799999999999999%)
@@ -432,7 +432,7 @@ Comparison (higher means better/faster):
 Size: 100000 items
 Pattern: dpSpecial
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.04318999999999917s (2315350.775642554 ops/sec)
   Lookup time: 0.02338899999999988s (2137757.065287111 ops/sec)
   False positives: 435 (0.8699999999999999%)
@@ -465,7 +465,7 @@ Comparison (higher means better/faster):
 Size: 1000000 items
 Pattern: dpSpecial
 
-Nim's Default (Farm Hash) Results:
+Nim's Hash (Farm Hash) Results:
   Insert time: 0.4443290000000015s (2250584.589347075 ops/sec)
   Lookup time: 0.2233900000000002s (2238238.058999953 ops/sec)
   False positives: 4096 (0.8191999999999999%)

@@ -46,7 +46,7 @@ assert bf.lookup("test")
     - String concatenation overhead for second hash, causing higher insertion and lookup times, is acceptable.
 
 3. Use NimHash when:
-    - Consistency with Nim's default hashing is important
+    - Consistency with Nim's hashing is important
     - Working with smaller datasets where performance is less critical
     - Future availability of better hash functions or performant implementations
 
@@ -100,7 +100,7 @@ let secondHash = murmurHash32(item & " b", 0'u32)
 - Bit Rotation for second hash provides sufficient randomness in some use cases while being much faster than string concatenation (but results in higher FP rate)
 - Choose between bit rotation or string concatenation as per your use-case.
 
-3. Nim's Default Hash:
+3. Nim's Hash:
 ```nim
   let
     hashA = abs(hash(item)) mod maxValue
