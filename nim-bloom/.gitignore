@@ -1,6 +1,8 @@
 nimcache
 nimcache/*
 tests/test
+benches/bench
+benches/bench_arch_end
 bloom
 *.html
 *.css

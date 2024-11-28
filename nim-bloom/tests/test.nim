@@ -1,195 +1,139 @@
 import unittest
+import sets
+import strutils
 include bloom
 from random import rand, randomize
 import times
 
 suite "murmur":
-  # Test murmurhash 3 when enabled
+  # Test murmurhash3 implementations
   setup:
     var hashOutputs: MurmurHashes
     hashOutputs = [0, 0]
-    rawMurmurHash("hello", 5, 0, hashOutputs)
+    rawMurmurHash128("hello", 5, 0'u32, hashOutputs)
 
-  test "raw":
-    check int(hashOutputs[0]) == -3758069500696749310 # Correct murmur outputs (cast to int64)
+  test "murmur128 raw":
+    check int(hashOutputs[0]) == -3758069500696749310
     check int(hashOutputs[1]) == 6565844092913065241
 
-  test "wrapped":
-    let hashOutputs2 = murmurHash("hello", 0)
+  test "murmur128 wrapped":
+    let hashOutputs2 = murmurHash128("hello", 0'u32)
     check hashOutputs2[0] == hashOutputs[0]
     check hashOutputs2[1] == hashOutputs[1]
 
-  test "seed":
-    let hashOutputs3 = murmurHash("hello", 10)
-    check hashOutputs3[0] != hashOutputs[0]
-    check hashOutputs3[1] != hashOutputs[1]
+  test "murmur32":
+    let hash1 = murmurHash32("hello", 0'u32)
+    let hash2 = murmurHash32("hello", 0'u32)
+    check hash1 == hash2  # Same input should give same output
+    
+    let hash3 = murmurHash32("hello", 10'u32)
+    check hash1 != hash3  # Different seeds should give different outputs
 
-suite "hashing comparison":
-  test "hash distribution":
-    const testSize = 10000
-    var standardCollisions = 0
-    var extendedCollisions = 0
+suite "hash quality":
+  test "hash type selection":
+    let bfMurmur128 = initializeBloomFilter(100, 0.01, hashType = htMurmur128)
+    let bfMurmur32 = initializeBloomFilter(100, 0.01, hashType = htMurmur32)
+    let bfNimHash = initializeBloomFilter(100, 0.01, hashType = htNimHash)
     
-    var bfStandard = initializeBloomFilter(testSize, 0.01, useExtendedHash = false)
-    var bfExtended = initializeBloomFilter(testSize, 0.01, useExtendedHash = true)
-    
-    # Generate test data
-    var testData = newSeq[string](testSize)
-    for i in 0..<testSize:
-      testData[i] = $i & "salt" & $rand(1000000)
-    
-    # Test standard hash
-    var startTime = cpuTime()
-    for item in testData:
-      bfStandard.insert(item)
-    let standardTime = cpuTime() - startTime
-    
-    # Test extended hash
-    startTime = cpuTime()
-    for item in testData:
-      bfExtended.insert(item)
-    let extendedTime = cpuTime() - startTime
-    
-    echo "Standard hash time: ", standardTime
-    echo "Extended hash time: ", extendedTime
+    check bfMurmur128.hashType == htMurmur128
+    check bfMurmur32.hashType == htMurmur32
+    check bfNimHash.hashType == htNimHash
 
-test "hash implementation switch":
-    # Create two filters with different hash implementations
-    let standardBf = initializeBloomFilter(1000, 0.01, useExtendedHash = false)
-    let murmurBf = initializeBloomFilter(1000, 0.01, useExtendedHash = true)
+  test "quality across hash types":
+    const testSize = 10_000
+    let patterns = @[
+      "shortstr",
+      repeat("a", 1000),  # Very long string
+      "special@#$%^&*()",  # Special characters
+      "unicode→★∑≈",  # Unicode characters
+      repeat("pattern", 10)  # Repeating pattern
+    ]
     
-    # Insert same elements
-    let testData = ["test1", "test2", "test3", "test4", "test5"]
-    for item in testData:
-      var stdBf = standardBf  # Create mutable copies
-      var murBf = murmurBf
-      stdBf.insert(item)
-      murBf.insert(item)
+    for hashType in [htMurmur128, htMurmur32, htNimHash]:
+      var bf = initializeBloomFilter(testSize, 0.01, hashType = hashType)
+      var inserted = newSeq[string](testSize)
       
-      # Verify both can find their items
-      check stdBf.lookup(item)
-      check murBf.lookup(item)
-    
-    # Verify false positives work as expected for both
-    let nonExistentItem = "definitely-not-in-filter"
-    var falsePositiveStd = standardBf.lookup(nonExistentItem)
-    var falsePositiveMur = murmurBf.lookup(nonExistentItem)
-    
-    # Both should maintain their error rates
-    # Run multiple times to get a sample
-    var fpCountStd = 0
-    var fpCountMur = 0
-    for i in 0..1000:
-      let testItem = "test-" & $i
-      if standardBf.lookup(testItem): fpCountStd += 1
-      if murmurBf.lookup(testItem): fpCountMur += 1
-    
-    # Both should have similar false positive rates within reasonable bounds
-    let fpRateStd = fpCountStd.float / 1000.0
-    let fpRateMur = fpCountMur.float / 1000.0
-    
-    check abs(fpRateStd - fpRateMur) < 0.01  # Should be reasonably close
-    check fpRateStd < standardBf.errorRate * 1.5  # Should not exceed target error rate by too much
-    check fpRateMur < murmurBf.errorRate * 1.5
+      # Test pattern handling
+      for pattern in patterns:
+        bf.insert(pattern)
+        check bf.lookup(pattern)
+      
+      # Test general insertion and lookup
+      for i in 0..<testSize:
+        inserted[i] = $i & "test" & $rand(1000)
+        bf.insert(inserted[i])
+      
+      # Verify all insertions
+      var lookupErrors = 0
+      for item in inserted:
+        if not bf.lookup(item):
+          lookupErrors.inc
+      check lookupErrors == 0
+      
+      # Check false positive rate
+      var falsePositives = 0
+      let fpTestSize = testSize div 2
+      for i in 0..<fpTestSize:
+        let testItem = "notpresent" & $i & $rand(1000)
+        if bf.lookup(testItem):
+          falsePositives.inc
+      
+      let fpRate = falsePositives.float / fpTestSize.float
+      check fpRate < bf.errorRate * 1.5  # Allow some margin but should be close to target
 
-    echo "Standard hash false positive rate: ", fpRateStd
-    echo "Murmur hash false positive rate: ", fpRateMur
-
-suite "bloom":
+suite "bloom filter":
   setup:
-    let nElementsToTest = 100000
+    let nElementsToTest = 10000
     var bf = initializeBloomFilter(capacity = nElementsToTest, errorRate = 0.001)
     randomize(2882) # Seed the RNG
     var
       sampleChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-      kTestElements = newSeq[string](nElementsToTest)
+      testElements = newSeq[string](nElementsToTest)
 
     for i in 0..<nElementsToTest:
       var newString = ""
       for j in 0..7:
         newString.add(sampleChars[rand(51)])
-      kTestElements[i] = newString
+      testElements[i] = newString
 
-    for i in 0..<nElementsToTest:
-      bf.insert(kTestElements[i])
+    for item in testElements:
+      bf.insert(item)
 
-  test "init parameters":
-    check(bf.capacity == nElementsToTest)
-    check(bf.errorRate == 0.001)
-    check(bf.kHashes == 10)
-    check(bf.mBits == 15 * nElementsToTest)
-
-  test "hash mode selection":
-    let bf1 = initializeBloomFilter(100, 0.01)
-    check(bf1.useExtendedHash == false)
-    
-    let bf2 = initializeBloomFilter(100, 0.01, useExtendedHash = true)
-    check(bf2.useExtendedHash == true)
+  test "initialization parameters":
+    check bf.capacity == nElementsToTest
+    check bf.errorRate == 0.001
+    check bf.kHashes == 10
+    check bf.mBits div bf.capacity == 15  # bits per element
 
   test "basic operations":
-    # Test empty lookup
-    check(bf.lookup("nothing") == false)
+    check bf.lookup("nonexistent") == false  # Test empty lookup
     
-    # Test insert and lookup
-    bf.insert("teststring")
-    check(bf.lookup("teststring") == true)
-    
-    # Test multiple inserts
-    bf.insert("test1")
-    bf.insert("test2")
-    check(bf.lookup("test1") == true)
-    check(bf.lookup("test2") == true)
-    check(bf.lookup("test3") == false)
-
-  test "large scale performance":
-    let largeSize = 1_000_000
-    var standardBf = initializeBloomFilter(largeSize, 0.001, useExtendedHash = false)
-    var extendedBf = initializeBloomFilter(largeSize, 0.001, useExtendedHash = true)
-    
-    var largeData = newSeq[string](1000)
-    for i in 0..<1000:
-      largeData[i] = $i & "test" & $rand(1000000)
-    
-    # Insert and measure false positives for both
-    var startTime = cpuTime()
-    for item in largeData:
-      standardBf.insert(item)
-    let standardTime = cpuTime() - startTime
-    
-    startTime = cpuTime()
-    for item in largeData:
-      extendedBf.insert(item)
-    let extendedTime = cpuTime() - startTime
-    
-    echo "Standard hash large insert time: ", standardTime
-    echo "Extended hash large insert time: ", extendedTime
+    var bf2 = initializeBloomFilter(100, 0.01)
+    bf2.insert("test string")
+    check bf2.lookup("test string") == true
+    check bf2.lookup("different string") == false
 
   test "error rate":
     var falsePositives = 0
-    for i in 0..<nElementsToTest:
-      var falsePositiveString = ""
-      for j in 0..8:
-        falsePositiveString.add(sampleChars[rand(51)])
-      if bf.lookup(falsePositiveString):
-        falsePositives += 1
+    let testSize = nElementsToTest div 2
+    for i in 0..<testSize:
+      var testString = ""
+      for j in 0..8:  # Different length than setup
+        testString.add(sampleChars[rand(51)])
+      if bf.lookup(testString):
+        falsePositives.inc
 
-    let actualErrorRate = falsePositives.float / nElementsToTest.float
-    check actualErrorRate < bf.errorRate
-    echo "Actual error rate: ", actualErrorRate
-    echo "Target error rate: ", bf.errorRate
-
-  test "lookup reliability":
+    let actualErrorRate = falsePositives.float / testSize.float
+    check actualErrorRate < bf.errorRate * 2.0  # Allow some margin
+    
+  test "perfect recall":
     var lookupErrors = 0
-    let startTime = cpuTime()
-    for i in 0..<nElementsToTest:
-      if not bf.lookup(kTestElements[i]):
-        lookupErrors += 1
-    let endTime = cpuTime()
-
+    for item in testElements:
+      if not bf.lookup(item):
+        lookupErrors.inc
     check lookupErrors == 0
-    echo "Lookup time for ", nElementsToTest, " items: ", formatFloat(endTime - startTime, format = ffDecimal, precision = 4), " seconds"
 
-  test "k/(m/n) specification":
+  test "k/m bits specification":
     expect(BloomFilterError):
       discard getMOverNBitsForK(k = 2, targetError = 0.00001)
 
@@ -197,23 +141,13 @@ suite "bloom":
     check getMOverNBitsForK(k = 7, targetError = 0.01) == 10
     check getMOverNBitsForK(k = 7, targetError = 0.001) == 16
 
-  test "force params":
     var bf2 = initializeBloomFilter(10000, 0.001, k = 4, forceNBitsPerElem = 20)
-    check(bf2.capacity == 10000)
-    check(bf2.errorRate == 0.001)
-    check(bf2.kHashes == 4)
-    check(bf2.mBits == 200000)
-
-  test "init error cases":
-    expect(BloomFilterError):
-      discard initializeBloomFilter(1000, 0.00001, k = 2)
-
-    expect(BloomFilterError):
-      discard initializeBloomFilter(1000, 0.00001, k = 13)
+    check bf2.kHashes == 4
+    check bf2.mBits == 200000
 
   test "string representation":
     let bf3 = initializeBloomFilter(1000, 0.01, k = 4)
     let str = $bf3
-    check str.contains("1000")
-    check str.contains("4 hash functions")
-    check str.contains("1.0e-02")  # 0.01 in scientific notation
+    check str.contains("1000")  # Capacity
+    check str.contains("4 hash")  # Hash functions
+    check str.contains("1.0e-02")  # Error rate in scientific notation

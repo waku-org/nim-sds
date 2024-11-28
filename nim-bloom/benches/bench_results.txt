@@ -1,0 +1,495 @@
+
+=== Benchmark: Small dpRandom ===
+Size: 10000 items
+Pattern: dpRandom
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.006714000000000001s (1489425.081918379 ops/sec)
+  Lookup time: 0.003387999999999995s (1475796.930342387 ops/sec)
+  False positives: 51 (1.02%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.001955999999999999s (5112474.437627814 ops/sec)
+  Lookup time: 0.0009989999999999999s (5005005.005005006 ops/sec)
+  False positives: 25 (0.5%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.002221999999999995s (4500450.045004511 ops/sec)
+  Lookup time: 0.001138s (4393673.110720562 ops/sec)
+  False positives: 43 (0.86%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.432515337423315x faster
+    Murmur32 vs NimHash: 3.021602160216029x faster
+    Murmur128 vs Murmur32: 1.135991820040897x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.391391391391387x faster
+    Murmur32 vs NimHash: 2.977152899824249x faster
+    Murmur128 vs Murmur32: 1.139139139139139x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 2.04x better
+    Murmur32 vs NimHash: 1.186046511627907x better
+    Murmur128 vs Murmur32: 1.72x better
+
+=== Benchmark: Medium dpRandom ===
+Size: 100000 items
+Pattern: dpRandom
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.04622000000000001s (2163565.556036348 ops/sec)
+  Lookup time: 0.02333199999999999s (2142979.59883422 ops/sec)
+  False positives: 402 (0.804%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.013294s (7522190.461862494 ops/sec)
+  Lookup time: 0.006861999999999979s (7286505.392014012 ops/sec)
+  False positives: 405 (0.8099999999999999%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.01558700000000002s (6415602.745877968 ops/sec)
+  Lookup time: 0.008157999999999999s (6128953.174797745 ops/sec)
+  False positives: 406 (0.8120000000000001%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.476756431472846x faster
+    Murmur32 vs NimHash: 2.965291589144798x faster
+    Murmur128 vs Murmur32: 1.172483827290508x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.400174876129417x faster
+    Murmur32 vs NimHash: 2.860014709487619x faster
+    Murmur128 vs Murmur32: 1.188866219761006x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.9925925925925927x better
+    Murmur32 vs NimHash: 0.9901477832512315x better
+    Murmur128 vs Murmur32: 1.002469135802469x better
+
+=== Benchmark: Large dpRandom ===
+Size: 1000000 items
+Pattern: dpRandom
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.4711130000000001s (2122632.998877127 ops/sec)
+  Lookup time: 0.2430289999999999s (2057367.639252929 ops/sec)
+  False positives: 4104 (0.8208%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.1467989999999999s (6812035.504329053 ops/sec)
+  Lookup time: 0.07689400000000002s (6502457.929097197 ops/sec)
+  False positives: 4187 (0.8373999999999999%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.1697340000000001s (5891571.517786653 ops/sec)
+  Lookup time: 0.08597399999999999s (5815711.726801126 ops/sec)
+  False positives: 4130 (0.826%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.209238482550974x faster
+    Murmur32 vs NimHash: 2.775595932459024x faster
+    Murmur128 vs Murmur32: 1.156234034291788x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.160571696101125x faster
+    Murmur32 vs NimHash: 2.826773210505501x faster
+    Murmur128 vs Murmur32: 1.118084635992405x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.9801767375208981x better
+    Murmur32 vs NimHash: 0.9937046004842615x better
+    Murmur128 vs Murmur32: 0.9863864342010987x better
+
+=== Benchmark: Small dpSequential ===
+Size: 10000 items
+Pattern: dpSequential
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.004508000000000179s (2218278.615794056 ops/sec)
+  Lookup time: 0.002232000000000012s (2240143.369175615 ops/sec)
+  False positives: 42 (0.84%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.001201000000000008s (8326394.671107357 ops/sec)
+  Lookup time: 0.0006349999999999412s (7874015.748032225 ops/sec)
+  False positives: 47 (0.9400000000000001%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.00151200000000018s (6613756.613755827 ops/sec)
+  Lookup time: 0.0007530000000000037s (6640106.241699835 ops/sec)
+  False positives: 51 (1.02%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.753538717735346x faster
+    Murmur32 vs NimHash: 2.981481481481245x faster
+    Murmur128 vs Murmur32: 1.258950874271582x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.514960629921604x faster
+    Murmur32 vs NimHash: 2.964143426294822x faster
+    Murmur128 vs Murmur32: 1.185826771653659x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.8936170212765957x better
+    Murmur32 vs NimHash: 0.8235294117647057x better
+    Murmur128 vs Murmur32: 1.085106382978724x better
+
+=== Benchmark: Medium dpSequential ===
+Size: 100000 items
+Pattern: dpSequential
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.04492400000000019s (2225981.65791113 ops/sec)
+  Lookup time: 0.02218900000000001s (2253368.78633557 ops/sec)
+  False positives: 436 (0.872%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.012737s (7851142.341210647 ops/sec)
+  Lookup time: 0.006547999999999998s (7635919.364691511 ops/sec)
+  False positives: 422 (0.844%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.01476000000000011s (6775067.750677458 ops/sec)
+  Lookup time: 0.008092999999999684s (6178178.672927462 ops/sec)
+  False positives: 446 (0.8920000000000001%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.527047185365486x faster
+    Murmur32 vs NimHash: 3.043631436314354x faster
+    Murmur128 vs Murmur32: 1.1588286095627x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.388668295662801x faster
+    Murmur32 vs NimHash: 2.741752131471751x faster
+    Murmur128 vs Murmur32: 1.23594990836892x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 1.033175355450237x better
+    Murmur32 vs NimHash: 0.9775784753363228x better
+    Murmur128 vs Murmur32: 1.056872037914692x better
+
+=== Benchmark: Large dpSequential ===
+Size: 1000000 items
+Pattern: dpSequential
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.4540329999999999s (2202483.079423743 ops/sec)
+  Lookup time: 0.2223580000000003s (2248626.089459338 ops/sec)
+  False positives: 4037 (0.8074%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.1384119999999998s (7224807.097650506 ops/sec)
+  Lookup time: 0.07243599999999972s (6902645.093599894 ops/sec)
+  False positives: 4205 (0.8410000000000001%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.1643889999999999s (6083132.083046923 ops/sec)
+  Lookup time: 0.08048799999999989s (6212106.152469941 ops/sec)
+  False positives: 4024 (0.8048%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.280300840967551x faster
+    Murmur32 vs NimHash: 2.761942709062043x faster
+    Murmur128 vs Murmur32: 1.187678813975668x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.069716715445374x faster
+    Murmur32 vs NimHash: 2.762622999701826x faster
+    Murmur128 vs Murmur32: 1.111160196587335x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.9600475624256836x better
+    Murmur32 vs NimHash: 1.003230616302187x better
+    Murmur128 vs Murmur32: 0.9569560047562424x better
+
+=== Benchmark: Small dpFixed ===
+Size: 10000 items
+Pattern: dpFixed
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.004486999999999686s (2228660.574994585 ops/sec)
+  Lookup time: 0.002098999999999851s (2382086.707956339 ops/sec)
+  False positives: 43 (0.86%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.001263000000000236s (7917656.373711901 ops/sec)
+  Lookup time: 0.0006620000000001625s (7552870.090632588 ops/sec)
+  False positives: 47 (0.9400000000000001%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.001565000000000261s (6389776.357826412 ops/sec)
+  Lookup time: 0.0007539999999996994s (6631299.734750655 ops/sec)
+  False positives: 35 (0.7000000000000001%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.552652414884281x faster
+    Murmur32 vs NimHash: 2.86709265175651x faster
+    Murmur128 vs Murmur32: 1.239113222486119x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.170694864047335x faster
+    Murmur32 vs NimHash: 2.783819628648127x faster
+    Murmur128 vs Murmur32: 1.13897280966694x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.9148936170212766x better
+    Murmur32 vs NimHash: 1.228571428571429x better
+    Murmur128 vs Murmur32: 0.7446808510638298x better
+
+=== Benchmark: Medium dpFixed ===
+Size: 100000 items
+Pattern: dpFixed
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.04369800000000001s (2288434.253283903 ops/sec)
+  Lookup time: 0.02203400000000011s (2269220.295906316 ops/sec)
+  False positives: 411 (0.822%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.013401s (7462129.691814045 ops/sec)
+  Lookup time: 0.00719499999999984s (6949270.32661586 ops/sec)
+  False positives: 440 (0.88%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.01487600000000011s (6722237.160526973 ops/sec)
+  Lookup time: 0.007677999999999852s (6512112.529304632 ops/sec)
+  False positives: 433 (0.8659999999999999%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.260801432728903x faster
+    Murmur32 vs NimHash: 2.937483194407078x faster
+    Murmur128 vs Murmur32: 1.110066412954266x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.062404447533092x faster
+    Murmur32 vs NimHash: 2.86975774941398x faster
+    Murmur128 vs Murmur32: 1.067129951355111x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.934090909090909x better
+    Murmur32 vs NimHash: 0.9491916859122402x better
+    Murmur128 vs Murmur32: 0.9840909090909089x better
+
+=== Benchmark: Large dpFixed ===
+Size: 1000000 items
+Pattern: dpFixed
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.4461910000000002s (2241192.673092912 ops/sec)
+  Lookup time: 0.2275340000000003s (2197473.784137752 ops/sec)
+  False positives: 4084 (0.8168%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.1576560000000002s (6342923.834170589 ops/sec)
+  Lookup time: 0.07750000000000057s (6451612.903225759 ops/sec)
+  False positives: 4109 (0.8218%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.1656709999999997s (6036059.418968932 ops/sec)
+  Lookup time: 0.08378900000000034s (5967370.418551337 ops/sec)
+  False positives: 4085 (0.8170000000000001%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 2.830155528492411x faster
+    Murmur32 vs NimHash: 2.693235388209168x faster
+    Murmur128 vs Murmur32: 1.050838534530874x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 2.935922580645144x faster
+    Murmur32 vs NimHash: 2.715559321629324x faster
+    Murmur128 vs Murmur32: 1.081148387096771x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.9939157945972257x better
+    Murmur32 vs NimHash: 0.9997552019583843x better
+    Murmur128 vs Murmur32: 0.9941591628133366x better
+
+=== Benchmark: Small dpLong ===
+Size: 10000 items
+Pattern: dpLong
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.009589999999999321s (1042752.86757046 ops/sec)
+  Lookup time: 0.005217000000000027s (958405.2137243577 ops/sec)
+  False positives: 39 (0.7799999999999999%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.001508000000000287s (6631299.734746749 ops/sec)
+  Lookup time: 0.0007299999999998974s (6849315.068494113 ops/sec)
+  False positives: 56 (1.12%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.001934000000000324s (5170630.816958802 ops/sec)
+  Lookup time: 0.0009790000000000632s (5107252.298263205 ops/sec)
+  False positives: 40 (0.8%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 6.359416445621682x faster
+    Murmur32 vs NimHash: 4.95863495346314x faster
+    Murmur128 vs Murmur32: 1.282493368700236x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 7.146575342466795x faster
+    Murmur32 vs NimHash: 5.328907048007856x faster
+    Murmur128 vs Murmur32: 1.341095890411234x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.6964285714285714x better
+    Murmur32 vs NimHash: 0.975x better
+    Murmur128 vs Murmur32: 0.7142857142857143x better
+
+=== Benchmark: Medium dpLong ===
+Size: 100000 items
+Pattern: dpLong
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.09930899999999987s (1006958.080335117 ops/sec)
+  Lookup time: 0.04954899999999984s (1009102.100950577 ops/sec)
+  False positives: 393 (0.786%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.0148350000000006s (6740815.63869201 ops/sec)
+  Lookup time: 0.007865000000000677s (6357279.084551265 ops/sec)
+  False positives: 422 (0.844%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.0197699999999994s (5058168.942842845 ops/sec)
+  Lookup time: 0.01105200000000028s (4524068.041983236 ops/sec)
+  False positives: 404 (0.8080000000000001%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 6.69423660262864x faster
+    Murmur32 vs NimHash: 5.023216995447794x faster
+    Murmur128 vs Murmur32: 1.33265925176937x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 6.299936427208592x faster
+    Murmur32 vs NimHash: 4.483260948244532x faster
+    Murmur128 vs Murmur32: 1.405212968849248x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.9312796208530807x better
+    Murmur32 vs NimHash: 0.9727722772277229x better
+    Murmur128 vs Murmur32: 0.9573459715639812x better
+
+=== Benchmark: Large dpLong ===
+Size: 1000000 items
+Pattern: dpLong
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 1.032455000000001s (968565.2159174002 ops/sec)
+  Lookup time: 0.5242619999999993s (953721.6124762058 ops/sec)
+  False positives: 4143 (0.8286%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.1612590000000003s (6201204.273869975 ops/sec)
+  Lookup time: 0.08462199999999953s (5908628.961735751 ops/sec)
+  False positives: 4044 (0.8088%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.2145720000000004s (4660440.318401273 ops/sec)
+  Lookup time: 0.1070960000000003s (4668708.448494795 ops/sec)
+  False positives: 4039 (0.8078%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 6.402464358578429x faster
+    Murmur32 vs NimHash: 4.81169490893499x faster
+    Murmur128 vs Murmur32: 1.330604803452831x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 6.195339273475009x faster
+    Murmur32 vs NimHash: 4.895252857249551x faster
+    Murmur128 vs Murmur32: 1.265581054572108x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 1.024480712166172x better
+    Murmur32 vs NimHash: 1.025748947759346x better
+    Murmur128 vs Murmur32: 0.9987636003956479x better
+
+=== Benchmark: Small dpSpecial ===
+Size: 10000 items
+Pattern: dpSpecial
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.005548999999998472s (1802126.509281448 ops/sec)
+  Lookup time: 0.002686999999999884s (1860811.313732868 ops/sec)
+  False positives: 39 (0.7799999999999999%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.001593999999998985s (6273525.721459452 ops/sec)
+  Lookup time: 0.0008440000000007331s (5924170.616108599 ops/sec)
+  False positives: 33 (0.66%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.001865999999999701s (5359056.806003002 ops/sec)
+  Lookup time: 0.0009710000000016095s (5149330.587015152 ops/sec)
+  False positives: 51 (1.02%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.481179422836891x faster
+    Murmur32 vs NimHash: 2.973740621650247x faster
+    Murmur128 vs Murmur32: 1.170639899624146x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 3.183649289096623x faster
+    Murmur32 vs NimHash: 2.767250257461823x faster
+    Murmur128 vs Murmur32: 1.150473933650197x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 1.181818181818182x better
+    Murmur32 vs NimHash: 0.7647058823529411x better
+    Murmur128 vs Murmur32: 1.545454545454546x better
+
+=== Benchmark: Medium dpSpecial ===
+Size: 100000 items
+Pattern: dpSpecial
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.04318999999999917s (2315350.775642554 ops/sec)
+  Lookup time: 0.02338899999999988s (2137757.065287111 ops/sec)
+  False positives: 435 (0.8699999999999999%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.01633100000000098s (6123323.740125772 ops/sec)
+  Lookup time: 0.007922000000000651s (6311537.490532176 ops/sec)
+  False positives: 405 (0.8099999999999999%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.01658399999999993s (6029908.345393174 ops/sec)
+  Lookup time: 0.00944400000000023s (5294366.793731341 ops/sec)
+  False positives: 368 (0.736%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 2.64466352336027x faster
+    Murmur32 vs NimHash: 2.604317414375262x faster
+    Murmur128 vs Murmur32: 1.015492009062454x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 2.952411007321126x faster
+    Murmur32 vs NimHash: 2.476598898771634x faster
+    Murmur128 vs Murmur32: 1.192123201211746x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 1.074074074074074x better
+    Murmur32 vs NimHash: 1.182065217391304x better
+    Murmur128 vs Murmur32: 0.9086419753086421x better
+
+=== Benchmark: Large dpSpecial ===
+Size: 1000000 items
+Pattern: dpSpecial
+
+Nim's Default (Farm Hash) Results:
+  Insert time: 0.4443290000000015s (2250584.589347075 ops/sec)
+  Lookup time: 0.2233900000000002s (2238238.058999953 ops/sec)
+  False positives: 4096 (0.8191999999999999%)
+
+MurmurHash3_128 Results:
+  Insert time: 0.1440049999999999s (6944203.326273397 ops/sec)
+  Lookup time: 0.07467199999999963s (6695950.289265086 ops/sec)
+  False positives: 4137 (0.8274%)
+
+MurmurHash3_32 Results:
+  Insert time: 0.1650030000000005s (6060495.869772048 ops/sec)
+  Lookup time: 0.08332200000000078s (6000816.110991038 ops/sec)
+  False positives: 4222 (0.8444%)
+
+Comparison (higher means better/faster):
+  Insert Speed:
+    Murmur128 vs NimHash: 3.085510919759742x faster
+    Murmur32 vs NimHash: 2.692854069319953x faster
+    Murmur128 vs Murmur32: 1.145814381445092x faster
+  Lookup Speed:
+    Murmur128 vs NimHash: 2.991616670237858x faster
+    Murmur32 vs NimHash: 2.681044622068578x faster
+    Murmur128 vs Murmur32: 1.115839940004302x faster
+  False Positive Rates:
+    Murmur128 vs NimHash: 0.9900894367899443x better
+    Murmur32 vs NimHash: 0.9701563240170534x better
+    Murmur128 vs Murmur32: 1.020546289581822x better
