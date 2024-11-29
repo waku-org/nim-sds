@@ -7,7 +7,7 @@ import private/probabilities
 {.compile: "murmur3.c".}
 
 type
-  BloomFilterError = object of CatchableError
+  BloomFilterError* = object of CatchableError
   MurmurHashes = array[0..1, int]
   BloomFilter* = object
     capacity*: int

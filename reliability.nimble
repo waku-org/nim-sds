@@ -8,6 +8,7 @@ srcDir        = "src"
 # Dependencies
 requires "nim >= 2.0.8"
 requires "chronicles"
+requires "libp2p"
 
 # Tasks
 task test, "Run the test suite":

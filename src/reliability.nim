@@ -1,4 +1,8 @@
-import ./common, ./utils
+import std/[times, locks]
+import chronos, results
+import ./common
+import ./utils
+import ./protobuf
 
 proc defaultConfig*(): ReliabilityConfig =
   ## Creates a default configuration for the ReliabilityManager.
@@ -15,7 +19,7 @@ proc defaultConfig*(): ReliabilityConfig =
     maxResendAttempts: DefaultMaxResendAttempts
   )
 
-proc newReliabilityManager*(channelId: string, config: ReliabilityConfig = defaultConfig()): Result[ReliabilityManager] =
+proc newReliabilityManager*(channelId: string, config: ReliabilityConfig = defaultConfig()): Result[ReliabilityManager, ReliabilityError] =
   ## Creates a new ReliabilityManager with the specified channel ID and configuration.
   ##
   ## Parameters:
@@ -25,17 +29,19 @@ proc newReliabilityManager*(channelId: string, config: ReliabilityConfig = defau
   ## Returns:
   ##   A Result containing either a new ReliabilityManager instance or an error.
   if channelId.len == 0:
-    return err[ReliabilityManager](reInvalidArgument)
+    return err(reInvalidArgument)
   
   try:
-    let bloomFilterResult = newRollingBloomFilter(config.bloomFilterCapacity, config.bloomFilterErrorRate, config.bloomFilterWindow)
-    if bloomFilterResult.isErr:
-      return err[ReliabilityManager](bloomFilterResult.error)
-
+    let bloomFilter = newRollingBloomFilter(
+      config.bloomFilterCapacity,
+      config.bloomFilterErrorRate,
+      config.bloomFilterWindow
+    )
+    
     let rm = ReliabilityManager(
       lamportTimestamp: 0,
       messageHistory: @[],
-      bloomFilter: bloomFilterResult.value,
+      bloomFilter: bloomFilter,
       outgoingBuffer: @[],
       incomingBuffer: @[],
       channelId: channelId,
@@ -44,9 +50,9 @@ proc newReliabilityManager*(channelId: string, config: ReliabilityConfig = defau
     initLock(rm.lock)
     return ok(rm)
   except:
-    return err[ReliabilityManager](reOutOfMemory)
+    return err(reOutOfMemory)
 
-proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte]): Result[seq[byte]] =
+proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte], messageId: MessageID): Result[seq[byte], ReliabilityError] =
   ## Wraps an outgoing message with reliability metadata.
   ##
   ## Parameters:
@@ -55,15 +61,14 @@ proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte]): Result[se
   ## Returns:
   ##   A Result containing either a Message object with reliability metadata or an error.
   if message.len == 0:
-    return err[Message](reInvalidArgument)
+    return err(reInvalidArgument)
   if message.len > MaxMessageSize:
-    return err[Message](reMessageTooLarge)
+    return err(reMessageTooLarge)
 
   withLock rm.lock:
     try:
       let msg = Message(
-        senderId: "TODO_SENDER_ID",
-        messageId: generateUniqueID(),
+        messageId: messageId,
         lamportTimestamp: rm.lamportTimestamp,
         causalHistory: rm.getRecentMessageIDs(rm.config.maxCausalHistory),
         channelId: rm.channelId,
@@ -71,11 +76,11 @@ proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte]): Result[se
       )
       rm.updateLamportTimestamp(getTime().toUnix)
       rm.outgoingBuffer.add(UnacknowledgedMessage(message: msg, sendTime: getTime(), resendAttempts: 0))
-      return ok(msg)
+      return serializeMessage(msg)
     except:
-      return err[Message](reInternalError)
+      return err(reInternalError)
 
-proc unwrapReceivedMessage*(rm: ReliabilityManager, message: seq[byte]): Result[tuple[message: seq[byte], missingDeps: seq[MessageID]]] =
+proc unwrapReceivedMessage*(rm: ReliabilityManager, message: seq[byte]): Result[tuple[message: seq[byte], missingDeps: seq[MessageID]], ReliabilityError] =
   ## Unwraps a received message and processes its reliability metadata.
   ##
   ## Parameters:
@@ -85,33 +90,38 @@ proc unwrapReceivedMessage*(rm: ReliabilityManager, message: seq[byte]): Result[
   ##   A Result containing either a tuple with the processed message and missing dependencies, or an error.
   withLock rm.lock:
     try:
-      if rm.bloomFilter.contains(message.messageId):
-        return ok((message, @[]))
+      let msgResult = deserializeMessage(message)
+      if not msgResult.isOk:
+        return err(msgResult.error)
+      
+      let msg = msgResult.get
+      if rm.bloomFilter.contains(msg.messageId):
+        return ok((msg.content, @[]))
 
-      rm.bloomFilter.add(message.messageId)
-      rm.updateLamportTimestamp(message.lamportTimestamp)
+      rm.bloomFilter.add(msg.messageId)
+      rm.updateLamportTimestamp(msg.lamportTimestamp)
 
       var missingDeps: seq[MessageID] = @[]
-      for depId in message.causalHistory:
+      for depId in msg.causalHistory:
         if not rm.bloomFilter.contains(depId):
           missingDeps.add(depId)
 
       if missingDeps.len == 0:
-        rm.messageHistory.add(message.messageId)
+        rm.messageHistory.add(msg.messageId)
         if rm.messageHistory.len > rm.config.maxMessageHistory:
           rm.messageHistory.delete(0)
         if rm.onMessageReady != nil:
-          rm.onMessageReady(message.messageId)
+          rm.onMessageReady(msg.messageId)
       else:
-        rm.incomingBuffer.add(message)
+        rm.incomingBuffer.add(msg)
         if rm.onMissingDependencies != nil:
-          rm.onMissingDependencies(message.messageId, missingDeps)
+          rm.onMissingDependencies(msg.messageId, missingDeps)
 
-      return ok((message, missingDeps))
+      return ok((msg.content, missingDeps))
     except:
-      return err[(Message, seq[MessageID])](reInternalError)
+      return err(reInternalError)
 
-proc markDependenciesMet*(rm: ReliabilityManager, messageIds: seq[MessageID]): Result[void] =
+proc markDependenciesMet*(rm: ReliabilityManager, messageIds: seq[MessageID]): Result[void, ReliabilityError] =
   ## Marks the specified message dependencies as met.
   ##
   ## Parameters:
@@ -122,9 +132,21 @@ proc markDependenciesMet*(rm: ReliabilityManager, messageIds: seq[MessageID]): R
   withLock rm.lock:
     try:
       var processedMessages: seq[Message] = @[]
-      rm.incomingBuffer = rm.incomingBuffer.filterIt(
-        not messageIds.allIt(it in it.causalHistory or rm.bloomFilter.contains(it))
-      )
+      var newIncomingBuffer: seq[Message] = @[]
+      
+      for msg in rm.incomingBuffer:
+        var allDependenciesMet = true
+        for depId in msg.causalHistory:
+          if depId notin messageIds and not rm.bloomFilter.contains(depId):
+            allDependenciesMet = false
+            break
+        
+        if allDependenciesMet:
+          processedMessages.add(msg)
+        else:
+          newIncomingBuffer.add(msg)
+      
+      rm.incomingBuffer = newIncomingBuffer
 
       for msg in processedMessages:
         rm.messageHistory.add(msg.messageId)
@@ -135,72 +157,80 @@ proc markDependenciesMet*(rm: ReliabilityManager, messageIds: seq[MessageID]): R
       
       return ok()
     except:
-      return err[void](reInternalError)
+      return err(reInternalError)
 
 proc setCallbacks*(rm: ReliabilityManager, 
-                   onMessageReady: proc(messageId: MessageID), 
-                   onMessageSent: proc(messageId: MessageID),
-                   onMissingDependencies: proc(messageId: MessageID, missingDeps: seq[MessageID])) =
+                  onMessageReady: proc(messageId: MessageID) {.gcsafe.}, 
+                  onMessageSent: proc(messageId: MessageID) {.gcsafe.},
+                  onMissingDependencies: proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.},
+                  onPeriodicSync: PeriodicSyncCallback = nil) =
   ## Sets the callback functions for various events in the ReliabilityManager.
   ##
   ## Parameters:
   ##   - onMessageReady: Callback function called when a message is ready to be processed.
   ##   - onMessageSent: Callback function called when a message is confirmed as sent.
   ##   - onMissingDependencies: Callback function called when a message has missing dependencies.
+  ##   - onPeriodicSync: Callback function called to notify about periodic sync
   withLock rm.lock:
     rm.onMessageReady = onMessageReady
     rm.onMessageSent = onMessageSent
     rm.onMissingDependencies = onMissingDependencies
+    rm.onPeriodicSync = onPeriodicSync
 
-proc checkUnacknowledgedMessages*(rm: ReliabilityManager) =
+proc checkUnacknowledgedMessages*(rm: ReliabilityManager) {.raises: [].} =
   ## Checks and processes unacknowledged messages in the outgoing buffer.
   withLock rm.lock:
     let now = getTime()
     var newOutgoingBuffer: seq[UnacknowledgedMessage] = @[]
-    for msg in rm.outgoingBuffer:
-      if (now - msg.sendTime) < rm.config.resendInterval:
-        newOutgoingBuffer.add(msg)
-      elif msg.resendAttempts < rm.config.maxResendAttempts:
-        # Resend the message
-        msg.resendAttempts += 1
-        msg.sendTime = now
-        newOutgoingBuffer.add(msg)
-        # Here you would actually resend the message
-      elif rm.onMessageSent != nil:
-        rm.onMessageSent(msg.message.messageId)
-    rm.outgoingBuffer = newOutgoingBuffer
+    
+    try:
+      for msg in rm.outgoingBuffer:
+        if (now - msg.sendTime) < rm.config.resendInterval:
+          newOutgoingBuffer.add(msg)
+        elif msg.resendAttempts < rm.config.maxResendAttempts:
+          var updatedMsg = msg
+          updatedMsg.resendAttempts += 1
+          updatedMsg.sendTime = now
+          newOutgoingBuffer.add(updatedMsg)
+        elif rm.onMessageSent != nil:
+          rm.onMessageSent(msg.message.messageId)
+      
+      rm.outgoingBuffer = newOutgoingBuffer
+    except:
+      discard
 
-proc periodicBufferSweep(rm: ReliabilityManager) {.async.} =
-  ## Periodically sweeps the buffer to clean up and resend messages.
+proc periodicBufferSweep(rm: ReliabilityManager) {.async: (raises: [CancelledError]).} =
+  ## Periodically sweeps the buffer to clean up and check unacknowledged messages.
   ##
   ## This is an internal function and should not be called directly.
   while true:
-    rm.checkUnacknowledgedMessages()
-    rm.cleanBloomFilter()
-    await sleepAsync(5000)  # Sleep for 5 seconds
+    {.gcsafe.}:
+      try:
+        rm.checkUnacknowledgedMessages()
+        rm.cleanBloomFilter()
+      except Exception as e:
+        logError("Error in periodic buffer sweep: " & e.msg)
+    await sleepAsync(chronos.seconds(5))
 
-proc periodicSyncMessage(rm: ReliabilityManager) {.async.} =
-  ## Periodically sends a sync message to maintain connectivity.
-  ##
-  ## This is an internal function and should not be called directly.
+proc periodicSyncMessage(rm: ReliabilityManager) {.async: (raises: [CancelledError]).} =
+  ## Periodically notifies to send a sync message to maintain connectivity.
   while true:
-    discard rm.wrapOutgoingMessage("")  # Empty content for sync messages
-    await sleepAsync(30000)  # Sleep for 30 seconds
+    {.gcsafe.}:
+      try:
+        if rm.onPeriodicSync != nil:
+          rm.onPeriodicSync()
+      except Exception as e:
+        logError("Error in periodic sync: " & e.msg)
+    await sleepAsync(chronos.seconds(30))
 
 proc startPeriodicTasks*(rm: ReliabilityManager) =
   ## Starts the periodic tasks for buffer sweeping and sync message sending.
   ##
   ## This procedure should be called after creating a ReliabilityManager to enable automatic maintenance.
-  asyncCheck rm.periodicBufferSweep()
-  asyncCheck rm.periodicSyncMessage()
+  asyncSpawn rm.periodicBufferSweep()
+  asyncSpawn rm.periodicSyncMessage()
 
-# # To demonstrate how to use the ReliabilityManager
-# proc processMessage*(rm: ReliabilityManager, message: string): seq[MessageID] =
-#   let wrappedMsg = checkAndLogError(rm.wrapOutgoingMessage(message), "Failed to wrap message")
-#   let (_, missingDeps) = checkAndLogError(rm.unwrapReceivedMessage(wrappedMsg), "Failed to unwrap message")
-#   return missingDeps
-
-proc resetReliabilityManager*(rm: ReliabilityManager): Result[void] =
+proc resetReliabilityManager*(rm: ReliabilityManager): Result[void, ReliabilityError] =
   ## Resets the ReliabilityManager to its initial state.
   ##
   ## This procedure clears all buffers and resets the Lamport timestamp.
@@ -208,49 +238,26 @@ proc resetReliabilityManager*(rm: ReliabilityManager): Result[void] =
   ## Returns:
   ##   A Result indicating success or an error if the Bloom filter initialization fails.
   withLock rm.lock:
-    let bloomFilterResult = newRollingBloomFilter(rm.config.bloomFilterCapacity, rm.config.bloomFilterErrorRate, rm.config.bloomFilterWindow)
-    if bloomFilterResult.isErr:
-      return err[void](bloomFilterResult.error)
+    try:
+      rm.lamportTimestamp = 0
+      rm.messageHistory.setLen(0)
+      rm.outgoingBuffer.setLen(0)
+      rm.incomingBuffer.setLen(0)
+      rm.bloomFilter = newRollingBloomFilter(
+        rm.config.bloomFilterCapacity,
+        rm.config.bloomFilterErrorRate,
+        rm.config.bloomFilterWindow
+      )
+      return ok()
+    except:
+      return err(reInternalError)
 
-    rm.lamportTimestamp = 0
-    rm.messageHistory.setLen(0)
-    rm.outgoingBuffer.setLen(0)
-    rm.incomingBuffer.setLen(0)
-    rm.bloomFilter = bloomFilterResult.value
-    return ok()
-
-proc `=destroy`(rm: var ReliabilityManager) =
-  ## Destructor for ReliabilityManager. Ensures proper cleanup of resources.
-  deinitLock(rm.lock)
-
-when isMainModule:
-  # Example usage and basic tests
-  let config = defaultConfig()
-  let rmResult = newReliabilityManager("testChannel", config)
-  if rmResult.isOk:
-    let rm = rmResult.value
-    rm.setCallbacks(
-      proc(messageId: MessageID) = echo "Message ready: ", messageId,
-      proc(messageId: MessageID) = echo "Message sent: ", messageId,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) = echo "Missing dependencies for ", messageId, ": ", missingDeps
-    )
-    
-    let msgResult = rm.wrapOutgoingMessage("Hello, World!")
-    if msgResult.isOk:
-      let msg = msgResult.value
-      echo "Wrapped message: ", msg
-      
-      let unwrapResult = rm.unwrapReceivedMessage(msg)
-      if unwrapResult.isOk:
-        let (unwrappedMsg, missingDeps) = unwrapResult.value
-        echo "Unwrapped message: ", unwrappedMsg
-        echo "Missing dependencies: ", missingDeps
-      else:
-        echo "Error unwrapping message: ", unwrapResult.error
-    else:
-      echo "Error wrapping message: ", msgResult.error
-    
-    rm.startPeriodicTasks()
-    # In a real application, you'd keep the program running to allow periodic tasks to execute
-  else:
-    echo "Error creating ReliabilityManager: ", rmResult.error
+proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
+  if not rm.isNil:
+    {.gcsafe.}:
+      try:
+        rm.outgoingBuffer.setLen(0)
+        rm.incomingBuffer.setLen(0)
+        rm.messageHistory.setLen(0)
+      except Exception as e:
+        logError("Error during cleanup: " & e.msg)

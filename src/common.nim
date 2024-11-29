@@ -1,16 +1,15 @@
-import std/[times, json, locks]
+import std/[times, locks]
 import "../nim-bloom/src/bloom"
 
 type
   MessageID* = string
 
   Message* = object
-    senderId*: string
     messageId*: MessageID
     lamportTimestamp*: int64
     causalHistory*: seq[MessageID]
     channelId*: string
-    content*: string
+    content*: seq[byte]
 
   UnacknowledgedMessage* = object
     message*: Message
@@ -21,18 +20,20 @@ type
     id*: MessageID
     timestamp*: Time
 
+  PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
+
   RollingBloomFilter* = object
     filter*: BloomFilter
-    window*: Duration
+    window*: times.Duration
     messages*: seq[TimestampedMessageID]
 
   ReliabilityConfig* = object
     bloomFilterCapacity*: int
     bloomFilterErrorRate*: float
-    bloomFilterWindow*: Duration
+    bloomFilterWindow*: times.Duration
     maxMessageHistory*: int
     maxCausalHistory*: int
-    resendInterval*: Duration
+    resendInterval*: times.Duration
     maxResendAttempts*: int
 
   ReliabilityManager* = ref object
@@ -44,25 +45,18 @@ type
     channelId*: string
     config*: ReliabilityConfig
     lock*: Lock
-    onMessageReady*: proc(messageId: MessageID)
-    onMessageSent*: proc(messageId: MessageID)
-    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID])
+    onMessageReady*: proc(messageId: MessageID) {.gcsafe.}
+    onMessageSent*: proc(messageId: MessageID) {.gcsafe.}
+    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
+    onPeriodicSync*: PeriodicSyncCallback
 
   ReliabilityError* = enum
-    reSuccess,
-    reInvalidArgument,
-    reOutOfMemory,
-    reInternalError,
-    reSerializationError,
-    reDeserializationError,
+    reInvalidArgument
+    reOutOfMemory
+    reInternalError
+    reSerializationError
+    reDeserializationError
     reMessageTooLarge
-
-  Result*[T] = object
-    case isOk*: bool
-    of true:
-      value*: T
-    of false:
-      error*: ReliabilityError
 
 const
   DefaultBloomFilterCapacity* = 10000
@@ -73,9 +67,3 @@ const
   DefaultResendInterval* = initDuration(seconds = 30)
   DefaultMaxResendAttempts* = 5
   MaxMessageSize* = 1024 * 1024  # 1 MB
-
-proc ok*[T](value: T): Result[T] =
-  Result[T](isOk: true, value: value)
-
-proc err*[T](error: ReliabilityError): Result[T] =
-  Result[T](isOk: false, error: error)
