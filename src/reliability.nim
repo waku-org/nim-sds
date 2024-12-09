@@ -67,6 +67,7 @@ proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte], messageId:
 
   withLock rm.lock:
     try:
+      rm.updateLamportTimestamp(getTime().toUnix)
       let msg = Message(
         messageId: messageId,
         lamportTimestamp: rm.lamportTimestamp,
@@ -74,8 +75,9 @@ proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte], messageId:
         channelId: rm.channelId,
         content: message
       )
-      rm.updateLamportTimestamp(getTime().toUnix)
       rm.outgoingBuffer.add(UnacknowledgedMessage(message: msg, sendTime: getTime(), resendAttempts: 0))
+      # rm.messageHistory.add(messageId)
+      # rm.bloomFilter.add(messageId)
       return serializeMessage(msg)
     except:
       return err(reInternalError)

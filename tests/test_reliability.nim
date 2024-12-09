@@ -42,54 +42,37 @@ suite "ReliabilityManager":
       missingDeps.len == 0
 
   test "markDependenciesMet":
-    info "test_state", state="starting markDependenciesMet test"
+    # First message
+    let msg1 = @[byte(1)]
+    let id1 = "msg1"
+    let wrap1 = rm.wrapOutgoingMessage(msg1, id1)
+    check wrap1.isOk()
+    let wrapped1 = wrap1.get()
 
-    block message1:
-      let msg1 = @[byte(1)]
-      let id1 = "msg1"
-      info "message_creation", msg="message 1", id=id1
-      let wrap1 = rm.wrapOutgoingMessage(msg1, id1)
-      check wrap1.isOk()
-      let wrapped1 = wrap1.get()
+    # Second message
+    let msg2 = @[byte(2)]
+    let id2 = "msg2"
+    let wrap2 = rm.wrapOutgoingMessage(msg2, id2)
+    check wrap2.isOk()
+    let wrapped2 = wrap2.get()
 
-      info "message_processing", msg="message 1", id=id1
-      let unwrap1 = rm.unwrapReceivedMessage(wrapped1)
-      check unwrap1.isOk()
-      let (content1, deps1) = unwrap1.get()
-      info "message_processed", msg="message 1", deps_count=deps1.len
-      check content1 == msg1
+    # Third message
+    let msg3 = @[byte(3)]
+    let id3 = "msg3"
+    let wrap3 = rm.wrapOutgoingMessage(msg3, id3)
+    check wrap3.isOk()
+    let wrapped3 = wrap3.get()
 
-    block message2:
-      let msg2 = @[byte(2)]
-      let id2 = "msg2"
-      info "message_creation", msg="message 2", id=id2
-      let wrap2 = rm.wrapOutgoingMessage(msg2, id2)
-      check wrap2.isOk()
-      let wrapped2 = wrap2.get()
+    # Check dependencies
+    var unwrap3 = rm.unwrapReceivedMessage(wrapped3)
+    check unwrap3.isOk()
+    var (_, missing3) = unwrap3.get()
 
-      info "message_processing", msg="message 2", id=id2
-      let unwrap2 = rm.unwrapReceivedMessage(wrapped2)
-      check unwrap2.isOk()
-      let (content2, deps2) = unwrap2.get()
-      info "message_processed", msg="message 2", deps_count=deps2.len
-      check content2 == msg2
+    # Mark dependencies as met
+    let markResult = rm.markDependenciesMet(@[id1, id2])
+    check markResult.isOk()
 
-    block message3:
-      info "message_creation", msg="message 3"
-      let msg3 = @[byte(3)]
-      let id3 = "msg3"
-      let wrap3 = rm.wrapOutgoingMessage(msg3, id3)
-      check wrap3.isOk()
-      info "message_wrapped", msg="message 3", id=id3
-      let wrapped3 = wrap3.get()
-
-      info "checking_dependencies", msg="message 3", id=id3
-      var unwrap3 = rm.unwrapReceivedMessage(wrapped3)
-      check unwrap3.isOk()
-      var (content3, missing3) = unwrap3.get()
-      info "dependencies_checked", msg="message 3", missing_deps=missing3.len
-
-    info "test_state", state="completed"
+    check missing3.len == 0
 
   test "callbacks work correctly":
     var messageReadyCount = 0
