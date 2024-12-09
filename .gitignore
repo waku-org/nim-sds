@@ -1,2 +1,6 @@
-
+nimcache
+nimcache/*
+tests/bloom
+nim-bloom/bloom
 .DS_Store
+src/.DS_Store

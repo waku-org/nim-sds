@@ -3,18 +3,8 @@ import hashes
 import strutils
 import private/probabilities
 
-# Import MurmurHash3 code with both 128-bit and 32-bit implementations
-{.compile: "murmur3.c".}
-
 type
-  HashType* = enum
-    htMurmur128,  # Default: MurmurHash3_x64_128
-    htMurmur32,   # MurmurHash3_x86_32
-    htNimHash  # Nim's Hash (currently Farm Hash)
-
   BloomFilterError* = object of CatchableError
-  
-  MurmurHashes = array[0..1, int]
   
   BloomFilter* = object
     capacity*: int
@@ -22,27 +12,8 @@ type
     kHashes*: int
     mBits*: int
     intArray: seq[int]
-    hashType*: HashType
 
 {.push overflowChecks: off.}  # Turn off overflow checks for hashing operations
-
-proc rawMurmurHash128(key: cstring, len: int, seed: uint32,
-                     outHashes: var MurmurHashes): void {.
-  importc: "MurmurHash3_x64_128".}
-
-proc rawMurmurHash32(key: cstring, len: int, seed: uint32,
-                    outHashes: ptr uint32): void {.
-  importc: "MurmurHash3_x86_32".}
-
-proc murmurHash128(key: string, seed = 0'u32): MurmurHashes =
-  var hashResult: MurmurHashes
-  rawMurmurHash128(key, key.len, seed, hashResult)
-  hashResult
-
-proc murmurHash32(key: string, seed = 0'u32): uint32 =
-  var result: uint32
-  rawMurmurHash32(key, key.len, seed, addr result)
-  result
 
 proc hashN(item: string, n: int, maxValue: int): int =
   ## Get the nth hash using Nim's built-in hash function using
@@ -76,8 +47,7 @@ proc getMOverNBitsForK(k: int, targetError: float,
     "Specified value of k and error rate not achievable using less than 4 bytes / element.")
 
 proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
-                              forceNBitsPerElem = 0,
-                              hashType = htMurmur128): BloomFilter =
+                              forceNBitsPerElem = 0): BloomFilter =
   ## Initializes a Bloom filter with specified parameters.
   ##
   ## Parameters:
@@ -87,10 +57,6 @@ proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
   ## See http://pages.cs.wisc.edu/~cao/papers/summary-cache/node8.html for
   ## useful tables on k and m/n (n bits per element) combinations.
   ## - forceNBitsPerElem: Optional override for bits per element
-  ## - hashType: Choose hash function:
-  ##   * htMurmur128: MurmurHash3_x64_128 (default) - recommended
-  ##   * htMurmur32: MurmurHash3_x86_32
-  ##   * htNimHash: Nim's Hash
   var
     kHashes: int
     nBitsPerElem: int
@@ -115,48 +81,22 @@ proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
     errorRate: errorRate,
     kHashes: kHashes,
     mBits: mBits,
-    intArray: newSeq[int](mInts),
-    hashType: hashType
+    intArray: newSeq[int](mInts)
   )
 
 proc `$`*(bf: BloomFilter): string =
   ## Prints the configuration of the Bloom filter.
-  let hashType = case bf.hashType
-    of htMurmur128: "MurmurHash3_x64_128"
-    of htMurmur32: "MurmurHash3_x86_32"
-    of htNimHash: "NimHashHash"
-  
-  "Bloom filter with $1 capacity, $2 error rate, $3 hash functions, and requiring $4 bits of memory. Using $5." %
+  "Bloom filter with $1 capacity, $2 error rate, $3 hash functions, and requiring $4 bits of memory." %
     [$bf.capacity,
      formatFloat(bf.errorRate, format = ffScientific, precision = 1),
      $bf.kHashes,
-     $(bf.mBits div bf.capacity),
-     hashType]
-
-{.push overflowChecks: off.}  # Turn off overflow checks for hash computations
+     $(bf.mBits div bf.capacity)]
 
 proc computeHashes(bf: BloomFilter, item: string): seq[int] =
   var hashes = newSeq[int](bf.kHashes)
-  
-  case bf.hashType
-  of htMurmur128:
-    let murmurHashes = murmurHash128(item, 0'u32)
-    for i in 0..<bf.kHashes:
-      hashes[i] = abs((murmurHashes[0].int64 + i.int64 * murmurHashes[1].int64).int) mod bf.mBits
-  of htMurmur32:
-    let baseHash = murmurHash32(item, 0'u32)
-    # let rotated = ((baseHash shl 13) or (baseHash shr (32 - 13)))
-    let secondHash = murmurHash32(item & " b", 0'u32)
-    for i in 0..<bf.kHashes:
-      hashes[i] = abs((baseHash.int64 + i.int64 * secondHash.int64).int) mod bf.mBits
-  
-  of htNimHash:
-    for i in 0..<bf.kHashes:
-      hashes[i] = hashN(item, i, bf.mBits)
-  
+  for i in 0..<bf.kHashes:
+    hashes[i] = hashN(item, i, bf.mBits)
   hashes
-
-{.pop.}  # Restore overflow checks
 
 proc insert*(bf: var BloomFilter, item: string) =
   ## Insert an item (string) into the Bloom filter.
