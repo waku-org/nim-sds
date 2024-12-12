@@ -75,6 +75,12 @@ proc cleanBloomFilter*(rm: ReliabilityManager) {.gcsafe, raises: [].} =
     except Exception as e:
       logError("Failed to clean ReliabilityManager bloom filter: " & e.msg)
 
+proc addToBloomAndHistory*(rm: ReliabilityManager, msg: Message) =
+  rm.messageHistory.add(msg.messageId)
+  if rm.messageHistory.len > rm.config.maxMessageHistory:
+    rm.messageHistory.delete(0)
+  rm.bloomFilter.add(msg.messageId)
+
 proc updateLamportTimestamp*(rm: ReliabilityManager, msgTs: int64) =
   rm.lamportTimestamp = max(msgTs, rm.lamportTimestamp) + 1
 

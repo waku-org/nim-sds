@@ -52,6 +52,39 @@ proc newReliabilityManager*(channelId: string, config: ReliabilityConfig = defau
   except:
     return err(reOutOfMemory)
 
+proc reviewAckStatus(rm: ReliabilityManager, msg: Message) =
+  var i = 0
+  while i < rm.outgoingBuffer.len:
+    var acknowledged = false
+    let outMsg = rm.outgoingBuffer[i]
+    
+    # Check if message is in causal history
+    for msgID in msg.causalHistory:
+      if outMsg.message.messageId == msgID:
+        acknowledged = true
+        break
+    
+    # Check bloom filter if not already acknowledged
+    if not acknowledged and msg.bloomFilter.len > 0:
+      let bfResult = deserializeBloomFilter(msg.bloomFilter)
+      if bfResult.isOk:
+        var rbf = RollingBloomFilter(
+          filter: bfResult.get(),
+          window: rm.bloomFilter.window,
+          messages: @[]
+        )
+        if rbf.contains(outMsg.message.messageId):
+          acknowledged = true
+      else:
+        logError("Failed to deserialize bloom filter")
+    
+    if acknowledged:
+      if rm.onMessageSent != nil:
+        rm.onMessageSent(outMsg.message.messageId)
+      rm.outgoingBuffer.delete(i)
+    else:
+      inc i
+
 proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte], messageId: MessageID): Result[seq[byte], ReliabilityError] =
   ## Wraps an outgoing message with reliability metadata.
   ##
@@ -68,16 +101,35 @@ proc wrapOutgoingMessage*(rm: ReliabilityManager, message: seq[byte], messageId:
   withLock rm.lock:
     try:
       rm.updateLamportTimestamp(getTime().toUnix)
+      
+      # Serialize current bloom filter
+      var bloomBytes: seq[byte]
+      let bfResult = serializeBloomFilter(rm.bloomFilter.filter)
+      if bfResult.isErr:
+        logError("Failed to serialize bloom filter")
+        bloomBytes = @[]
+      else:
+        bloomBytes = bfResult.get()
+
       let msg = Message(
         messageId: messageId,
         lamportTimestamp: rm.lamportTimestamp,
         causalHistory: rm.getRecentMessageIDs(rm.config.maxCausalHistory),
         channelId: rm.channelId,
-        content: message
+        content: message,
+        bloomFilter: bloomBytes
       )
-      rm.outgoingBuffer.add(UnacknowledgedMessage(message: msg, sendTime: getTime(), resendAttempts: 0))
-      # rm.messageHistory.add(messageId)
-      # rm.bloomFilter.add(messageId)
+
+      # Add to outgoing buffer
+      rm.outgoingBuffer.add(UnacknowledgedMessage(
+        message: msg,
+        sendTime: getTime(),
+        resendAttempts: 0
+      ))
+
+      # Add to causal history and bloom filter
+      rm.addToBloomAndHistory(msg)
+
       return serializeMessage(msg)
     except:
       return err(reInternalError)
@@ -100,8 +152,11 @@ proc unwrapReceivedMessage*(rm: ReliabilityManager, message: seq[byte]): Result[
       if rm.bloomFilter.contains(msg.messageId):
         return ok((msg.content, @[]))
 
-      rm.bloomFilter.add(msg.messageId)
+      # Update Lamport timestamp
       rm.updateLamportTimestamp(msg.lamportTimestamp)
+
+      # Review ACK status for outgoing messages
+      rm.reviewAckStatus(msg)
 
       var missingDeps: seq[MessageID] = @[]
       for depId in msg.causalHistory:
@@ -109,12 +164,12 @@ proc unwrapReceivedMessage*(rm: ReliabilityManager, message: seq[byte]): Result[
           missingDeps.add(depId)
 
       if missingDeps.len == 0:
-        rm.messageHistory.add(msg.messageId)
-        if rm.messageHistory.len > rm.config.maxMessageHistory:
-          rm.messageHistory.delete(0)
+        # All dependencies met, add to history
+        rm.addToBloomAndHistory(msg)
         if rm.onMessageReady != nil:
           rm.onMessageReady(msg.messageId)
       else:
+        # Buffer message and request missing dependencies
         rm.incomingBuffer.add(msg)
         if rm.onMissingDependencies != nil:
           rm.onMissingDependencies(msg.messageId, missingDeps)
@@ -136,6 +191,12 @@ proc markDependenciesMet*(rm: ReliabilityManager, messageIds: seq[MessageID]): R
       var processedMessages: seq[Message] = @[]
       var newIncomingBuffer: seq[Message] = @[]
       
+      # Add all messageIds to both bloom filter and causal history
+      for msgId in messageIds:
+        if not rm.bloomFilter.contains(msgId):
+          rm.bloomFilter.add(msgId)
+          rm.messageHistory.add(msgId)
+      
       for msg in rm.incomingBuffer:
         var allDependenciesMet = true
         for depId in msg.causalHistory:
@@ -145,15 +206,13 @@ proc markDependenciesMet*(rm: ReliabilityManager, messageIds: seq[MessageID]): R
         
         if allDependenciesMet:
           processedMessages.add(msg)
+          rm.addToBloomAndHistory(msg)
         else:
           newIncomingBuffer.add(msg)
       
       rm.incomingBuffer = newIncomingBuffer
 
       for msg in processedMessages:
-        rm.messageHistory.add(msg.messageId)
-        if rm.messageHistory.len > rm.config.maxMessageHistory:
-          rm.messageHistory.delete(0)
         if rm.onMessageReady != nil:
           rm.onMessageReady(msg.messageId)
       

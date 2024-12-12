@@ -10,6 +10,7 @@ type
     causalHistory*: seq[MessageID]
     channelId*: string
     content*: seq[byte]
+    bloomFilter*: seq[byte]
 
   UnacknowledgedMessage* = object
     message*: Message

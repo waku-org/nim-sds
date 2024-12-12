@@ -1,6 +1,8 @@
-import unittest, results, chronos, chronicles
+import unittest, results, chronos
 import ../src/reliability
 import ../src/common
+import ../src/protobuf
+import ../src/utils
 
 suite "ReliabilityManager":
   var rm: ReliabilityManager
@@ -41,38 +43,58 @@ suite "ReliabilityManager":
       unwrapped == msg
       missingDeps.len == 0
 
-  test "markDependenciesMet":
-    # First message
-    let msg1 = @[byte(1)]
+  test "marking dependencies":
+    var messageReadyCount = 0
+    var messageSentCount = 0
+    var missingDepsCount = 0
+
+    rm.setCallbacks(
+      proc(messageId: MessageID) {.gcsafe.} = messageReadyCount += 1,
+      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
+      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = missingDepsCount += 1
+    )
+
+    # We'll create dependency IDs that aren't in the bloom filter yet
     let id1 = "msg1"
-    let wrap1 = rm.wrapOutgoingMessage(msg1, id1)
-    check wrap1.isOk()
-    let wrapped1 = wrap1.get()
-
-    # Second message
-    let msg2 = @[byte(2)]
     let id2 = "msg2"
-    let wrap2 = rm.wrapOutgoingMessage(msg2, id2)
-    check wrap2.isOk()
-    let wrapped2 = wrap2.get()
 
-    # Third message
-    let msg3 = @[byte(3)]
-    let id3 = "msg3"
-    let wrap3 = rm.wrapOutgoingMessage(msg3, id3)
-    check wrap3.isOk()
-    let wrapped3 = wrap3.get()
+    # Create a message that depends on these IDs
+    let msg3 = Message(
+      messageId: "msg3",
+      lamportTimestamp: 1,
+      causalHistory: @[id1, id2],  # Depends on messages we haven't seen
+      channelId: "testChannel",
+      content: @[byte(3)],
+      bloomFilter: @[]
+    )
 
-    # Check dependencies
-    var unwrap3 = rm.unwrapReceivedMessage(wrapped3)
-    check unwrap3.isOk()
-    var (_, missing3) = unwrap3.get()
+    let serializedMsg3 = serializeMessage(msg3)
+    check serializedMsg3.isOk()
 
-    # Mark dependencies as met
-    let markResult = rm.markDependenciesMet(@[id1, id2])
+    # Process the message - should identify missing dependencies
+    let unwrapResult = rm.unwrapReceivedMessage(serializedMsg3.get())
+    check unwrapResult.isOk()
+    let (_, missingDeps) = unwrapResult.get()
+    
+    # Verify missing dependencies were identified
+    check missingDepsCount == 1
+    check missingDeps.len == 2
+    check id1 in missingDeps
+    check id2 in missingDeps
+
+    # Now mark dependencies as met
+    let markResult = rm.markDependenciesMet(missingDeps)
     check markResult.isOk()
 
-    check missing3.len == 0
+    # Process the message again - should now be ready
+    let reprocessResult = rm.unwrapReceivedMessage(serializedMsg3.get())
+    check reprocessResult.isOk()
+    let (_, remainingDeps) = reprocessResult.get()
+
+    # Verify message is now processed
+    check remainingDeps.len == 0
+    check messageReadyCount == 1  # msg3 should now be ready
+    check missingDepsCount == 1   # Only the first attempt should report missing deps
 
   test "callbacks work correctly":
     var messageReadyCount = 0
@@ -85,18 +107,76 @@ suite "ReliabilityManager":
       proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = missingDepsCount += 1
     )
 
-    let msg1Result = rm.wrapOutgoingMessage(@[byte(1)], "msg1")
-    let msg2Result = rm.wrapOutgoingMessage(@[byte(2)], "msg2")
-    check msg1Result.isOk() and msg2Result.isOk()
-    let msg1 = msg1Result.get()
-    let msg2 = msg2Result.get()
-    discard rm.unwrapReceivedMessage(msg1)
-    discard rm.unwrapReceivedMessage(msg2)
+    # First send our own message
+    let msg1 = @[byte(1)]
+    let id1 = "msg1"
+    let wrap1 = rm.wrapOutgoingMessage(msg1, id1)
+    check wrap1.isOk()
 
-    check:
-      messageReadyCount == 2
-      messageSentCount == 0  # This would be triggered by checkUnacknowledgedMessages
-      missingDepsCount == 0
+    # Create a message that has our message in causal history
+    let msg2 = Message(
+      messageId: "msg2",
+      lamportTimestamp: rm.lamportTimestamp + 1,
+      causalHistory: @[id1],  # Include our message in causal history
+      channelId: "testChannel",
+      content: @[byte(2)],
+      bloomFilter: @[]  # Test with an empty bloom filter
+    )
+    
+    let serializedMsg2 = serializeMessage(msg2)
+    check serializedMsg2.isOk()
+
+    # Process the "received" message - should trigger callbacks
+    let unwrapResult = rm.unwrapReceivedMessage(serializedMsg2.get())
+    check unwrapResult.isOk()
+    
+    check messageReadyCount == 1  # For msg2 which we "received"
+    check messageSentCount == 1   # For msg1 which was acknowledged via causal history
+
+  test "bloom filter acknowledgment":
+    var messageSentCount = 0
+    
+    rm.setCallbacks(
+      proc(messageId: MessageID) {.gcsafe.} = discard,
+      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
+      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard
+    )
+
+    # First send our own message
+    let msg1 = @[byte(1)]
+    let id1 = "msg1"
+    let wrap1 = rm.wrapOutgoingMessage(msg1, id1)
+    check wrap1.isOk()
+
+    # Create a message simulating another party's message
+    # with bloom filter containing our message
+    var otherPartyBloomFilter = newRollingBloomFilter(
+      DefaultBloomFilterCapacity,
+      DefaultBloomFilterErrorRate,
+      DefaultBloomFilterWindow
+    )
+    otherPartyBloomFilter.add(id1)  # Add our message to their bloom filter
+    
+    let bfResult = serializeBloomFilter(otherPartyBloomFilter.filter)
+    check bfResult.isOk()
+
+    let msg2 = Message(
+      messageId: "msg2",
+      lamportTimestamp: rm.lamportTimestamp + 1,
+      causalHistory: @[],  # Empty causal history as we're using bloom filter
+      channelId: "testChannel",
+      content: @[byte(2)],
+      bloomFilter: bfResult.get()
+    )
+
+    let serializedMsg2 = serializeMessage(msg2)
+    check serializedMsg2.isOk()
+
+    # Process the "received" message - should trigger acknowledgment
+    let unwrapResult = rm.unwrapReceivedMessage(serializedMsg2.get())
+    check unwrapResult.isOk()
+    
+    check messageSentCount == 1  # Our message should be acknowledged via bloom filter
 
   test "periodic sync callback works":
     var syncCallCount = 0

@@ -2,10 +2,7 @@ import ./protobufutil
 import ./common
 import libp2p/protobuf/minprotobuf
 import std/options
-
-proc toString(bytes: seq[byte]): string =
-  result = newString(bytes.len)
-  copyMem(result[0].addr, bytes[0].unsafeAddr, bytes.len)
+import "../nim-bloom/src/bloom"
 
 proc toBytes(s: string): seq[byte] =
   result = newSeq[byte](s.len)
@@ -22,6 +19,7 @@ proc encode*(msg: Message): ProtoBuffer =
 
   pb.write(4, msg.channelId)
   pb.write(5, msg.content)
+  pb.write(6, msg.bloomFilter)
   pb.finish()
   
   pb
@@ -39,17 +37,19 @@ proc decode*(T: type Message, buffer: seq[byte]): ProtobufResult[T] =
   msg.lamportTimestamp = int64(timestamp)
 
   # Decode causal history
-  var histories: seq[seq[byte]]
-  for histBytes in histories:
-    let hist = histBytes.toString
-    if hist notin msg.causalHistory:  # Avoid duplicate entries
-      msg.causalHistory.add(hist)
+  var causalHistory: seq[string]
+  let histResult = pb.getRepeatedField(3, causalHistory)
+  if histResult.isOk:
+    msg.causalHistory = causalHistory
 
   if not ?pb.getField(4, msg.channelId):
     return err(ProtobufError.missingRequiredField("channelId"))
 
   if not ?pb.getField(5, msg.content):
     return err(ProtobufError.missingRequiredField("content"))
+
+  if not ?pb.getField(6, msg.bloomFilter):
+    msg.bloomFilter = @[]  # Empty if not present
 
   ok(msg)
 
@@ -67,5 +67,58 @@ proc deserializeMessage*(data: seq[byte]): Result[Message, ReliabilityError] =
       ok(msgResult.get)
     else:
       err(reSerializationError)
+  except:
+    err(reDeserializationError)
+
+proc serializeBloomFilter*(filter: BloomFilter): Result[seq[byte], ReliabilityError] =
+  try:
+    var pb = initProtoBuffer()
+    
+    # Convert intArray to bytes
+    var bytes = newSeq[byte](filter.intArray.len * sizeof(int))
+    for i, val in filter.intArray:
+      let start = i * sizeof(int)
+      copyMem(addr bytes[start], unsafeAddr val, sizeof(int))
+    
+    pb.write(1, bytes)
+    pb.write(2, uint64(filter.capacity))
+    pb.write(3, uint64(filter.errorRate * 1_000_000))
+    pb.write(4, uint64(filter.kHashes))
+    pb.write(5, uint64(filter.mBits))
+    
+    pb.finish()
+    ok(pb.buffer)
+  except:
+    err(reSerializationError)
+
+proc deserializeBloomFilter*(data: seq[byte]): Result[BloomFilter, ReliabilityError] =
+  if data.len == 0:
+    return err(reDeserializationError)
+    
+  try:
+    let pb = initProtoBuffer(data)
+    var bytes: seq[byte]
+    var cap, errRate, kHashes, mBits: uint64
+    
+    if not pb.getField(1, bytes).get() or
+       not pb.getField(2, cap).get() or
+       not pb.getField(3, errRate).get() or
+       not pb.getField(4, kHashes).get() or
+       not pb.getField(5, mBits).get():
+      return err(reDeserializationError)
+    
+    # Convert bytes back to intArray
+    var intArray = newSeq[int](bytes.len div sizeof(int))
+    for i in 0 ..< intArray.len:
+      let start = i * sizeof(int)
+      copyMem(addr intArray[i], unsafeAddr bytes[start], sizeof(int))
+    
+    ok(BloomFilter(
+      intArray: intArray,
+      capacity: int(cap),
+      errorRate: float(errRate) / 1_000_000,
+      kHashes: int(kHashes),
+      mBits: int(mBits)
+    ))
   except:
     err(reDeserializationError)
