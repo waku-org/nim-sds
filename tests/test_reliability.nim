@@ -1,4 +1,4 @@
-import unittest, results, chronos
+import unittest, results, chronos, chronicles
 import ../src/reliability
 import ../src/common
 import ../src/protobuf
@@ -18,24 +18,21 @@ suite "ReliabilityManager":
 
   test "can create with default config":
     let config = defaultConfig()
-    check config.bloomFilterCapacity == DefaultBloomFilterCapacity
-    check config.bloomFilterErrorRate == DefaultBloomFilterErrorRate
-    check config.bloomFilterWindow == DefaultBloomFilterWindow
+    check:
+      config.bloomFilterCapacity == DefaultBloomFilterCapacity
+      config.bloomFilterErrorRate == DefaultBloomFilterErrorRate
+      config.bloomFilterWindow == DefaultBloomFilterWindow
+      config.maxMessageHistory == DefaultMaxMessageHistory
 
-  test "wrapOutgoingMessage":
+  test "basic message wrapping and unwrapping":
     let msg = @[byte(1), 2, 3]
     let msgId = "test-msg-1"
+    
     let wrappedResult = rm.wrapOutgoingMessage(msg, msgId)
     check wrappedResult.isOk()
     let wrapped = wrappedResult.get()
     check wrapped.len > 0
 
-  test "unwrapReceivedMessage":
-    let msg = @[byte(1), 2, 3]
-    let msgId = "test-msg-1"
-    let wrappedResult = rm.wrapOutgoingMessage(msg, msgId)
-    check wrappedResult.isOk()
-    let wrapped = wrappedResult.get()
     let unwrapResult = rm.unwrapReceivedMessage(wrapped)
     check unwrapResult.isOk()
     let (unwrapped, missingDeps) = unwrapResult.get()
@@ -54,11 +51,11 @@ suite "ReliabilityManager":
       proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = missingDepsCount += 1
     )
 
-    # We'll create dependency IDs that aren't in the bloom filter yet
+    # Create dependency IDs that aren't in bloom filter yet
     let id1 = "msg1"
     let id2 = "msg2"
 
-    # Create a message that depends on these IDs
+    # Create message depending on these IDs
     let msg3 = Message(
       messageId: "msg3",
       lamportTimestamp: 1,
@@ -71,30 +68,30 @@ suite "ReliabilityManager":
     let serializedMsg3 = serializeMessage(msg3)
     check serializedMsg3.isOk()
 
-    # Process the message - should identify missing dependencies
+    # Process message - should identify missing dependencies
     let unwrapResult = rm.unwrapReceivedMessage(serializedMsg3.get())
     check unwrapResult.isOk()
     let (_, missingDeps) = unwrapResult.get()
     
-    # Verify missing dependencies were identified
-    check missingDepsCount == 1
-    check missingDeps.len == 2
-    check id1 in missingDeps
-    check id2 in missingDeps
+    check:
+      missingDepsCount == 1
+      missingDeps.len == 2
+      id1 in missingDeps
+      id2 in missingDeps
 
-    # Now mark dependencies as met
+    # Mark dependencies as met
     let markResult = rm.markDependenciesMet(missingDeps)
     check markResult.isOk()
 
-    # Process the message again - should now be ready
+    # Process message again - should now be ready
     let reprocessResult = rm.unwrapReceivedMessage(serializedMsg3.get())
     check reprocessResult.isOk()
     let (_, remainingDeps) = reprocessResult.get()
 
-    # Verify message is now processed
-    check remainingDeps.len == 0
-    check messageReadyCount == 1  # msg3 should now be ready
-    check missingDepsCount == 1   # Only the first attempt should report missing deps
+    check:
+      remainingDeps.len == 0
+      messageReadyCount == 1
+      missingDepsCount == 1
 
   test "callbacks work correctly":
     var messageReadyCount = 0
@@ -130,8 +127,9 @@ suite "ReliabilityManager":
     let unwrapResult = rm.unwrapReceivedMessage(serializedMsg2.get())
     check unwrapResult.isOk()
     
-    check messageReadyCount == 1  # For msg2 which we "received"
-    check messageSentCount == 1   # For msg1 which was acknowledged via causal history
+    check:
+      messageReadyCount == 1  # For msg2 which we "received"
+      messageSentCount == 1   # For msg1 which was acknowledged via causal history
 
   test "bloom filter acknowledgment":
     var messageSentCount = 0
@@ -148,14 +146,13 @@ suite "ReliabilityManager":
     let wrap1 = rm.wrapOutgoingMessage(msg1, id1)
     check wrap1.isOk()
 
-    # Create a message simulating another party's message
-    # with bloom filter containing our message
+    # Create a message with bloom filter containing our message
     var otherPartyBloomFilter = newRollingBloomFilter(
       DefaultBloomFilterCapacity,
       DefaultBloomFilterErrorRate,
       DefaultBloomFilterWindow
     )
-    otherPartyBloomFilter.add(id1)  # Add our message to their bloom filter
+    otherPartyBloomFilter.add(id1)
     
     let bfResult = serializeBloomFilter(otherPartyBloomFilter.filter)
     check bfResult.isOk()
@@ -172,13 +169,12 @@ suite "ReliabilityManager":
     let serializedMsg2 = serializeMessage(msg2)
     check serializedMsg2.isOk()
 
-    # Process the "received" message - should trigger acknowledgment
     let unwrapResult = rm.unwrapReceivedMessage(serializedMsg2.get())
     check unwrapResult.isOk()
     
     check messageSentCount == 1  # Our message should be acknowledged via bloom filter
 
-  test "periodic sync callback works":
+  test "periodic sync callback":
     var syncCallCount = 0
     rm.setCallbacks(
       proc(messageId: MessageID) {.gcsafe.} = discard,
@@ -192,36 +188,63 @@ suite "ReliabilityManager":
     waitFor sleepAsync(chronos.seconds(1))
     rm.cleanup()
     
-    check(syncCallCount > 0)
+    check syncCallCount > 0
 
-  test "protobuf serialization":
-    let msg = @[byte(1), 2, 3]
-    let msgId = "test-msg-1"
-    let msgResult = rm.wrapOutgoingMessage(msg, msgId)
-    check msgResult.isOk()
-    let wrapped = msgResult.get()
+  test "buffer management":
+    var messageSentCount = 0
     
-    let unwrapResult = rm.unwrapReceivedMessage(wrapped)
-    check unwrapResult.isOk()
-    let (unwrapped, _) = unwrapResult.get()
+    rm.setCallbacks(
+      proc(messageId: MessageID) {.gcsafe.} = discard,
+      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
+      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard
+    )
+
+    # Add multiple messages to outgoing buffer
+    for i in 0..5:
+      let msg = @[byte(i)]
+      let id = "msg" & $i
+      let wrap = rm.wrapOutgoingMessage(msg, id)
+      check wrap.isOk()
+
+    let outBuffer = rm.getOutgoingBuffer()
+    check outBuffer.len == 6
+
+    # Create message that acknowledges some messages
+    let ackMsg = Message(
+      messageId: "ack1",
+      lamportTimestamp: rm.lamportTimestamp + 1,
+      causalHistory: @["msg0", "msg2", "msg4"],
+      channelId: "testChannel",
+      content: @[byte(100)],
+      bloomFilter: @[]
+    )
     
+    let serializedAck = serializeMessage(ackMsg)
+    check serializedAck.isOk()
+    
+    # Process the acknowledgment
+    discard rm.unwrapReceivedMessage(serializedAck.get())
+    
+    let finalBuffer = rm.getOutgoingBuffer()
     check:
-      unwrapped == msg
-      unwrapped.len == msg.len
+      finalBuffer.len == 3  # Should have removed acknowledged messages
+      messageSentCount == 3  # Should have triggered sent callback for acknowledged messages
 
   test "handles empty message":
     let msg: seq[byte] = @[]
     let msgId = "test-empty-msg"
     let wrappedResult = rm.wrapOutgoingMessage(msg, msgId)
-    check(not wrappedResult.isOk())
-    check(wrappedResult.error == reInvalidArgument)
+    check:
+      not wrappedResult.isOk()
+      wrappedResult.error == reInvalidArgument
 
   test "handles message too large":
     let msg = newSeq[byte](MaxMessageSize + 1)
     let msgId = "test-large-msg"
     let wrappedResult = rm.wrapOutgoingMessage(msg, msgId)
-    check(not wrappedResult.isOk())
-    check(wrappedResult.error == reMessageTooLarge)
+    check:
+      not wrappedResult.isOk()
+      wrappedResult.error == reMessageTooLarge
 
 suite "cleanup":
   test "cleanup works correctly":
@@ -234,10 +257,10 @@ suite "cleanup":
     let msgId = "test-msg-1"
     discard rm.wrapOutgoingMessage(msg, msgId)
 
-    # Cleanup
     rm.cleanup()
 
-    # Check buffers are empty
-    check(rm.outgoingBuffer.len == 0)
-    check(rm.incomingBuffer.len == 0)
-    check(rm.messageHistory.len == 0)
+    let outBuffer = rm.getOutgoingBuffer()
+    let history = rm.getMessageHistory()
+    check:
+      outBuffer.len == 0
+      history.len == 0

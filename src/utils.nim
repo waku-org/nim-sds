@@ -86,3 +86,15 @@ proc updateLamportTimestamp*(rm: ReliabilityManager, msgTs: int64) =
 
 proc getRecentMessageIDs*(rm: ReliabilityManager, n: int): seq[MessageID] =
   result = rm.messageHistory[max(0, rm.messageHistory.len - n) .. ^1]
+
+proc getMessageHistory*(rm: ReliabilityManager): seq[MessageID] =
+  withLock rm.lock:
+    result = rm.messageHistory
+
+proc getOutgoingBuffer*(rm: ReliabilityManager): seq[UnacknowledgedMessage] =
+  withLock rm.lock:
+    result = rm.outgoingBuffer
+
+proc getIncomingBuffer*(rm: ReliabilityManager): seq[Message] =
+  withLock rm.lock:
+    result = rm.incomingBuffer
