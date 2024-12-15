@@ -36,6 +36,8 @@ type
     maxCausalHistory*: int
     resendInterval*: times.Duration
     maxResendAttempts*: int
+    syncMessageInterval*: times.Duration
+    bufferSweepInterval*: times.Duration
 
   ReliabilityManager* = ref object
     lamportTimestamp*: int64
@@ -65,6 +67,8 @@ const
   DefaultBloomFilterWindow* = initDuration(hours = 1)
   DefaultMaxMessageHistory* = 1000
   DefaultMaxCausalHistory* = 10
-  DefaultResendInterval* = initDuration(seconds = 30)
+  DefaultResendInterval* = initDuration(seconds = 60)
   DefaultMaxResendAttempts* = 5
+  DefaultSyncMessageInterval* = initDuration(seconds = 30)
+  DefaultBufferSweepInterval* = initDuration(seconds = 60)
   MaxMessageSize* = 1024 * 1024  # 1 MB
