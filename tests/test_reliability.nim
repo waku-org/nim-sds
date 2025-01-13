@@ -1,8 +1,5 @@
 import unittest, results, chronos, std/times
-import ../src/reliability
-import ../src/common
-import ../src/protobuf
-import ../src/utils
+import ../src/[reliability, message, protobuf, reliability_utils, rolling_bloom_filter]
 
 # Core functionality tests
 suite "Core Operations":
@@ -296,12 +293,14 @@ suite "Periodic Tasks & Buffer Management":
       finalBuffer.len == 3  # Should have removed acknowledged messages
       messageSentCount == 3  # Should have triggered sent callback for acknowledged messages
 
-  test "periodic buffer sweep":
+  test "periodic buffer sweep and bloom clean":
     var messageSentCount = 0
     
     var config = defaultConfig()
-    config.resendInterval = initDuration(milliseconds = 100)  # Very short for testing
-    config.bufferSweepInterval = initDuration(milliseconds = 50)
+    config.resendInterval = initDuration(milliseconds = 100)       # Short for testing
+    config.bufferSweepInterval = initDuration(milliseconds = 50)   # Frequent sweeps
+    config.bloomFilterWindow = initDuration(milliseconds = 150)    # Short window
+    config.maxResendAttempts = 3 # Set a low number of max attempts
     
     let rmResultP = newReliabilityManager("testChannel", config)
     check rmResultP.isOk()
@@ -313,27 +312,39 @@ suite "Periodic Tasks & Buffer Management":
       proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard
     )
 
-    # Add message to buffer
+    # First message - should be cleaned from bloom filter later
     let msg1 = @[byte(1)]
     let id1 = "msg1"
     let wrap1 = rm.wrapOutgoingMessage(msg1, id1)
     check wrap1.isOk()
 
     let initialBuffer = rm.getOutgoingBuffer()
-    check initialBuffer[0].resendAttempts == 0
+    check:
+      initialBuffer[0].resendAttempts == 0
+      rm.bloomFilter.contains(id1)
 
     rm.startPeriodicTasks()
-    # Wait long enough for several sweep intervals
-    waitFor sleepAsync(chronos.milliseconds(300))
     
+    # Wait long enough for bloom filter window to pass and first message to exceed max retries
+    waitFor sleepAsync(chronos.milliseconds(500))
+    
+    # Add new message
+    let msg2 = @[byte(2)]
+    let id2 = "msg2"
+    let wrap2 = rm.wrapOutgoingMessage(msg2, id2)
+    check wrap2.isOk()
+
     let finalBuffer = rm.getOutgoingBuffer()
     check:
-      finalBuffer.len == 1
-      finalBuffer[0].resendAttempts > 0
+      finalBuffer.len == 1                  # Only msg2 should be in buffer, msg1 should be removed after max retries
+      finalBuffer[0].message.messageId == id2 # Verify it's the second message
+      finalBuffer[0].resendAttempts == 0    # New message should have 0 attempts
+      not rm.bloomFilter.contains(id1)      # Bloom filter cleaning check
+      rm.bloomFilter.contains(id2)          # New message still in filter
 
     rm.cleanup()
 
-  test "periodic sync":
+  test "periodic sync callback":
     var syncCallCount = 0
     rm.setCallbacks(
       proc(messageId: MessageID) {.gcsafe.} = discard,

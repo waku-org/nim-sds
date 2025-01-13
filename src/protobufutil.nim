@@ -11,13 +11,12 @@ type
   ProtobufErrorKind* {.pure.} = enum
     DecodeFailure
     MissingRequiredField
-    InvalidLengthField
 
   ProtobufError* = object
     case kind*: ProtobufErrorKind
     of DecodeFailure:
       error*: minprotobuf.ProtoError
-    of MissingRequiredField, InvalidLengthField:
+    of MissingRequiredField:
       field*: string
 
   ProtobufResult*[T] = Result[T, ProtobufError]
@@ -31,6 +30,3 @@ converter toProtobufError*(err: minprotobuf.ProtoError): ProtobufError =
 
 proc missingRequiredField*(T: type ProtobufError, field: string): T =
   ProtobufError(kind: ProtobufErrorKind.MissingRequiredField, field: field)
-
-proc invalidLengthField*(T: type ProtobufError, field: string): T =
-  ProtobufError(kind: ProtobufErrorKind.InvalidLengthField, field: field)

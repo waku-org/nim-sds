@@ -1,26 +1,6 @@
-import std/[times, locks]
+import std/[times, locks, tables, sets]
 import chronos, results
-import ./common
-import ./utils
-import ./protobuf
-import std/[tables, sets]
-
-proc defaultConfig*(): ReliabilityConfig =
-  ## Creates a default configuration for the ReliabilityManager.
-  ##
-  ## Returns:
-  ##   A ReliabilityConfig object with default values.
-  ReliabilityConfig(
-    bloomFilterCapacity: DefaultBloomFilterCapacity,
-    bloomFilterErrorRate: DefaultBloomFilterErrorRate,
-    bloomFilterWindow: DefaultBloomFilterWindow,
-    maxMessageHistory: DefaultMaxMessageHistory,
-    maxCausalHistory: DefaultMaxCausalHistory,
-    resendInterval: DefaultResendInterval,
-    maxResendAttempts: DefaultMaxResendAttempts,
-    syncMessageInterval: DefaultSyncMessageInterval,
-    bufferSweepInterval: DefaultBufferSweepInterval
-  )
+import ../src/[message, protobuf, reliability_utils, rolling_bloom_filter]
 
 proc newReliabilityManager*(channelId: string, config: ReliabilityConfig = defaultConfig()): Result[ReliabilityManager, ReliabilityError] =
   ## Creates a new ReliabilityManager with the specified channel ID and configuration.
@@ -189,43 +169,6 @@ proc processIncomingBuffer(rm: ReliabilityManager) =
         newIncomingBuffer.add(msg)
 
     rm.incomingBuffer = newIncomingBuffer
-  # withLock rm.lock:
-  #   var processedAny = true
-  #   while processedAny:
-  #     processedAny = false
-  #     var newIncomingBuffer: seq[Message] = @[]
-      
-  #     for msg in rm.incomingBuffer:
-  #       var allDependenciesMet = true
-  #       for depId in msg.causalHistory:
-  #         if not rm.bloomFilter.contains(depId):
-  #           allDependenciesMet = false
-  #           break
-
-  #         # Check if dependency is still in incoming buffer
-  #         for bufferedMsg in rm.incomingBuffer:
-  #           if bufferedMsg.messageId == depId:
-  #             allDependenciesMet = false
-  #             break
-          
-  #         if not allDependenciesMet:
-  #           break
-
-  #       if allDependenciesMet:
-  #         # Process message
-  #         rm.addToHistory(msg.messageId)
-  #         if rm.onMessageReady != nil:
-  #           rm.onMessageReady(msg.messageId)
-  #         processedAny = true
-  #       else:
-  #         # Keep in buffer
-  #         newIncomingBuffer.add(msg)
-
-  #     rm.incomingBuffer = newIncomingBuffer
-      
-  #     # Exit if no messages were processed in this pass
-  #     if not processedAny:
-  #       break
 
 proc unwrapReceivedMessage*(rm: ReliabilityManager, message: seq[byte]): Result[tuple[message: seq[byte], missingDeps: seq[MessageID]], ReliabilityError] =
   ## Unwraps a received message and processes its reliability metadata.
@@ -397,13 +340,3 @@ proc resetReliabilityManager*(rm: ReliabilityManager): Result[void, ReliabilityE
       return ok()
     except:
       return err(reInternalError)
-
-proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
-  if not rm.isNil:
-    {.gcsafe.}:
-      try:
-        rm.outgoingBuffer.setLen(0)
-        rm.incomingBuffer.setLen(0)
-        rm.messageHistory.setLen(0)
-      except Exception as e:
-        logError("Error during cleanup: " & e.msg)
