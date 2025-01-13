@@ -1,5 +1,5 @@
 import std/[times, locks]
-import "../nim-bloom/src/bloom"
+import ./bloom
 
 type
   MessageID* = string

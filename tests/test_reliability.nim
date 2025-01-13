@@ -1,4 +1,4 @@
-import unittest, results, chronos
+import unittest, results, chronos, std/times
 import ../src/reliability
 import ../src/common
 import ../src/protobuf
@@ -299,6 +299,14 @@ suite "Periodic Tasks & Buffer Management":
   test "periodic buffer sweep":
     var messageSentCount = 0
     
+    var config = defaultConfig()
+    config.resendInterval = initDuration(milliseconds = 100)  # Very short for testing
+    config.bufferSweepInterval = initDuration(milliseconds = 50)
+    
+    let rmResultP = newReliabilityManager("testChannel", config)
+    check rmResultP.isOk()
+    let rm = rmResultP.get()
+    
     rm.setCallbacks(
       proc(messageId: MessageID) {.gcsafe.} = discard,
       proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
@@ -315,12 +323,15 @@ suite "Periodic Tasks & Buffer Management":
     check initialBuffer[0].resendAttempts == 0
 
     rm.startPeriodicTasks()
-    waitFor sleepAsync(chronos.seconds(6))
+    # Wait long enough for several sweep intervals
+    waitFor sleepAsync(chronos.milliseconds(300))
     
     let finalBuffer = rm.getOutgoingBuffer()
     check:
       finalBuffer.len == 1
       finalBuffer[0].resendAttempts > 0
+
+    rm.cleanup()
 
   test "periodic sync":
     var syncCallCount = 0

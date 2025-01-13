@@ -1,6 +1,6 @@
 import std/[times, locks]
 import chronos, chronicles
-import "../nim-bloom/src/bloom"
+import ./bloom
 import ./common
 
 proc logError*(msg: string) =
@@ -11,25 +11,35 @@ proc logInfo*(msg: string) =
 
 proc newRollingBloomFilter*(capacity: int, errorRate: float, window: times.Duration): RollingBloomFilter {.gcsafe.} =
   try:
-    var filter: BloomFilter
+    var filterResult: Result[BloomFilter, string]
     {.gcsafe.}:
-      filter = initializeBloomFilter(capacity, errorRate)
-    logInfo("Successfully initialized bloom filter")
-    RollingBloomFilter(
-      filter: filter,
-      window: window,
-      messages: @[]
-    )
+      filterResult = initializeBloomFilter(capacity, errorRate)
+    
+    if filterResult.isOk:
+      logInfo("Successfully initialized bloom filter")
+      return RollingBloomFilter(
+        filter: filterResult.get(), # Extract the BloomFilter from Result
+        window: window,
+        messages: @[]
+      )
+    else:
+      logError("Failed to initialize bloom filter: " & filterResult.error)
+      # Fall through to default case below
+    
   except:
     logError("Failed to initialize bloom filter")
-    var filter: BloomFilter
-    {.gcsafe.}:
-      filter = initializeBloomFilter(DefaultBloomFilterCapacity, DefaultBloomFilterErrorRate)
-    RollingBloomFilter(
-      filter: filter,
+    
+  # Default fallback case
+  let defaultResult = initializeBloomFilter(DefaultBloomFilterCapacity, DefaultBloomFilterErrorRate)
+  if defaultResult.isOk:
+    return RollingBloomFilter(
+      filter: defaultResult.get(),
       window: window,
       messages: @[]
     )
+  else:
+    # If even default initialization fails, raise an exception
+    logError("Failed to initialize bloom filter with default parameters")
 
 proc add*(rbf: var RollingBloomFilter, messageId: MessageID) {.gcsafe.} =
   ## Adds a message ID to the rolling bloom filter.
@@ -54,9 +64,14 @@ proc clean*(rbf: var RollingBloomFilter) {.gcsafe.} =
     let now = getTime()
     let cutoff = now - rbf.window
     var newMessages: seq[TimestampedMessageID] = @[]
-    var newFilter: BloomFilter
-    {.gcsafe.}:
-      newFilter = initializeBloomFilter(rbf.filter.capacity, rbf.filter.errorRate)
+    
+    # Initialize new filter
+    let newFilterResult = initializeBloomFilter(rbf.filter.capacity, rbf.filter.errorRate)
+    if newFilterResult.isErr:
+      logError("Failed to create new bloom filter: " & newFilterResult.error)
+      return
+
+    var newFilter = newFilterResult.get()
 
     for msg in rbf.messages:
       if msg.timestamp > cutoff:

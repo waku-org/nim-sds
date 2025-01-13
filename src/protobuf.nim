@@ -1,8 +1,8 @@
 import ./protobufutil
 import ./common
+import ./bloom
 import libp2p/protobuf/minprotobuf
 import std/options
-import "../nim-bloom/src/bloom"
 
 proc toBytes(s: string): seq[byte] =
   result = newSeq[byte](s.len)

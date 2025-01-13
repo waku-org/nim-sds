@@ -12,4 +12,5 @@ requires "libp2p"
 
 # Tasks
 task test, "Run the test suite":
+  exec "nim c -r tests/test_bloom.nim"
   exec "nim c -r tests/test_reliability.nim"

@@ -327,20 +327,24 @@ proc checkUnacknowledgedMessages*(rm: ReliabilityManager) {.raises: [].} =
     var newOutgoingBuffer: seq[UnacknowledgedMessage] = @[]
     
     try:
-      for msg in rm.outgoingBuffer:
-        if (now - msg.sendTime) < rm.config.resendInterval:
-          newOutgoingBuffer.add(msg)
-        elif msg.resendAttempts < rm.config.maxResendAttempts:
-          var updatedMsg = msg
-          updatedMsg.resendAttempts += 1
-          updatedMsg.sendTime = now
-          newOutgoingBuffer.add(updatedMsg)
-        elif rm.onMessageSent != nil:
-          rm.onMessageSent(msg.message.messageId)
-      
+      for unackMsg in rm.outgoingBuffer:
+        let elapsed = now - unackMsg.sendTime
+        if elapsed > rm.config.resendInterval:
+          # Time to attempt resend
+          if unackMsg.resendAttempts < rm.config.maxResendAttempts:
+            var updatedMsg = unackMsg
+            updatedMsg.resendAttempts += 1
+            updatedMsg.sendTime = now
+            newOutgoingBuffer.add(updatedMsg)
+          else:
+            if rm.onMessageSent != nil:
+              rm.onMessageSent(unackMsg.message.messageId)
+        else:
+          newOutgoingBuffer.add(unackMsg)
+
       rm.outgoingBuffer = newOutgoingBuffer
-    except:
-      discard
+    except Exception as e:
+      logError("Error in checking unacknowledged messages: " & e.msg)
 
 proc periodicBufferSweep(rm: ReliabilityManager) {.async: (raises: [CancelledError]).} =
   ## Periodically sweeps the buffer to clean up and check unacknowledged messages.
@@ -351,7 +355,8 @@ proc periodicBufferSweep(rm: ReliabilityManager) {.async: (raises: [CancelledErr
         rm.cleanBloomFilter()
       except Exception as e:
         logError("Error in periodic buffer sweep: " & e.msg)
-    await sleepAsync(chronos.seconds(rm.config.bufferSweepInterval.inSeconds))
+    
+    await sleepAsync(chronos.milliseconds(rm.config.bufferSweepInterval.inMilliseconds))
 
 proc periodicSyncMessage(rm: ReliabilityManager) {.async: (raises: [CancelledError]).} =
   ## Periodically notifies to send a sync message to maintain connectivity.
