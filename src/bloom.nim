@@ -5,8 +5,6 @@ import results
 import private/probabilities
 
 type
-  BloomFilterError* = object of CatchableError
-  
   BloomFilter* = object
     capacity*: int
     errorRate*: float
@@ -33,7 +31,7 @@ proc hashN(item: string, n: int, maxValue: int): int =
 
 {.pop.}
 
-proc getMOverNBitsForK(k: int, targetError: float,
+proc getMOverNBitsForK*(k: int, targetError: float,
     probabilityTable = kErrors): Result[int, string] =
   ## Returns the optimal number of m/n bits for a given k.
   if k notin 0..12:

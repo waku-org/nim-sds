@@ -1,5 +1,5 @@
-import unittest, results
-include ../bloom_filter/bloom
+import unittest, results, strutils
+import ../src/bloom
 from random import rand, randomize
 
 suite "bloom filter":
