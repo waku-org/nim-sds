@@ -1,6 +1,7 @@
 from math import ceil, ln, pow, round
 import hashes
 import strutils
+import results
 import private/probabilities
 
 type
@@ -33,21 +34,19 @@ proc hashN(item: string, n: int, maxValue: int): int =
 {.pop.}
 
 proc getMOverNBitsForK(k: int, targetError: float,
-    probabilityTable = kErrors): int =
+    probabilityTable = kErrors): Result[int, string] =
   ## Returns the optimal number of m/n bits for a given k.
   if k notin 0..12:
-    raise newException(BloomFilterError,
-      "K must be <= 12 if forceNBitsPerElem is not also specified.")
+    return err("K must be <= 12 if forceNBitsPerElem is not also specified.")
 
   for mOverN in 2..probabilityTable[k].high:
     if probabilityTable[k][mOverN] < targetError:
-      return mOverN
+      return ok(mOverN)
 
-  raise newException(BloomFilterError,
-    "Specified value of k and error rate not achievable using less than 4 bytes / element.")
+  err("Specified value of k and error rate not achievable using less than 4 bytes / element.")
 
 proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
-                              forceNBitsPerElem = 0): BloomFilter =
+                              forceNBitsPerElem = 0): Result[BloomFilter, string] =
   ## Initializes a Bloom filter with specified parameters.
   ##
   ## Parameters:
@@ -67,7 +66,10 @@ proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
     nBitsPerElem = round(bitsPerElem).int
   else: # Use specified k if possible
     if forceNBitsPerElem < 1: # Use lookup table
-      nBitsPerElem = getMOverNBitsForK(k = k, targetError = errorRate)
+      let mOverNRes = getMOverNBitsForK(k = k, targetError = errorRate)
+      if mOverNRes.isErr:
+        return err(mOverNRes.error)
+      nBitsPerElem = mOverNRes.value
     else:
       nBitsPerElem = forceNBitsPerElem
     kHashes = k
@@ -76,13 +78,13 @@ proc initializeBloomFilter*(capacity: int, errorRate: float, k = 0,
     mBits = capacity * nBitsPerElem
     mInts = 1 + mBits div (sizeof(int) * 8)
 
-  BloomFilter(
+  ok(BloomFilter(
     capacity: capacity,
     errorRate: errorRate,
     kHashes: kHashes,
     mBits: mBits,
     intArray: newSeq[int](mInts)
-  )
+  ))
 
 proc `$`*(bf: BloomFilter): string =
   ## Prints the configuration of the Bloom filter.
