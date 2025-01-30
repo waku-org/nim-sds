@@ -7,7 +7,6 @@ type
   ReliabilityConfig* = object
     bloomFilterCapacity*: int
     bloomFilterErrorRate*: float
-    bloomFilterWindow*: times.Duration
     maxMessageHistory*: int
     maxCausalHistory*: int
     resendInterval*: times.Duration
@@ -29,7 +28,7 @@ type
     onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
     onPeriodicSync*: PeriodicSyncCallback
 
-  ReliabilityError* = enum
+  ReliabilityError* {.pure.} = enum
     reInvalidArgument
     reOutOfMemory
     reInternalError
@@ -45,7 +44,6 @@ proc defaultConfig*(): ReliabilityConfig =
   ReliabilityConfig(
     bloomFilterCapacity: DefaultBloomFilterCapacity,
     bloomFilterErrorRate: DefaultBloomFilterErrorRate,
-    bloomFilterWindow: DefaultBloomFilterWindow,
     maxMessageHistory: DefaultMaxMessageHistory,
     maxCausalHistory: DefaultMaxCausalHistory,
     resendInterval: DefaultResendInterval,
@@ -55,21 +53,24 @@ proc defaultConfig*(): ReliabilityConfig =
   )
 
 proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
-  if not rm.isNil:
+  if not rm.isNil():
     {.gcsafe.}:
       try:
-        rm.outgoingBuffer.setLen(0)
-        rm.incomingBuffer.setLen(0)
-        rm.messageHistory.setLen(0)
-      except Exception as e:
+        withLock rm.lock:
+          rm.outgoingBuffer.setLen(0)
+          rm.incomingBuffer.setLen(0)
+          rm.messageHistory.setLen(0)
+      except ValueError as e:
         logError("Error during cleanup: " & e.msg)
+      except Exception:
+        logError("Error during cleanup: " & getCurrentExceptionMsg())
 
 proc cleanBloomFilter*(rm: ReliabilityManager) {.gcsafe, raises: [].} =
   withLock rm.lock:
     try:
       rm.bloomFilter.clean()
-    except Exception as e:
-      logError("Failed to clean ReliabilityManager bloom filter: " & e.msg)
+    except Exception:
+      logError("Failed to clean ReliabilityManager bloom filter: " & getCurrentExceptionMsg())
 
 proc addToHistory*(rm: ReliabilityManager, msgId: MessageID) {.gcsafe, raises: [].} =
   rm.messageHistory.add(msgId)

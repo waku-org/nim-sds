@@ -10,7 +10,7 @@ type
     errorRate*: float
     kHashes*: int
     mBits*: int
-    intArray: seq[int]
+    intArray*: seq[int]
 
 {.push overflowChecks: off.}  # Turn off overflow checks for hashing operations
 

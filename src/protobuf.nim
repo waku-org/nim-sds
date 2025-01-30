@@ -1,5 +1,6 @@
 import libp2p/protobuf/minprotobuf
 import std/options
+import endians
 import ../src/[message, protobufutil, bloom, reliability_utils]
 
 proc toBytes(s: string): seq[byte] =
@@ -56,17 +57,13 @@ proc serializeMessage*(msg: Message): Result[seq[byte], ReliabilityError] =
     let pb = encode(msg)
     ok(pb.buffer)
   except:
-    err(reSerializationError)
+    return err(reSerializationError)
 
 proc deserializeMessage*(data: seq[byte]): Result[Message, ReliabilityError] =
-  try:
-    let msgResult = Message.decode(data)
-    if msgResult.isOk:
-      ok(msgResult.get)
-    else:
-      err(reSerializationError)
-  except:
-    err(reDeserializationError)
+  let msg = Message.decode(data).valueOr:
+    return err(ReliabilityError.reDeserializationError)
+
+  ok(msg)
 
 proc serializeBloomFilter*(filter: BloomFilter): Result[seq[byte], ReliabilityError] =
   try:
@@ -75,8 +72,10 @@ proc serializeBloomFilter*(filter: BloomFilter): Result[seq[byte], ReliabilityEr
     # Convert intArray to bytes
     var bytes = newSeq[byte](filter.intArray.len * sizeof(int))
     for i, val in filter.intArray:
+      var leVal: int
+      littleEndian64(addr leVal, unsafeAddr val)
       let start = i * sizeof(int)
-      copyMem(addr bytes[start], unsafeAddr val, sizeof(int))
+      copyMem(addr bytes[start], addr leVal, sizeof(int))
     
     pb.write(1, bytes)
     pb.write(2, uint64(filter.capacity))
@@ -87,11 +86,11 @@ proc serializeBloomFilter*(filter: BloomFilter): Result[seq[byte], ReliabilityEr
     pb.finish()
     ok(pb.buffer)
   except:
-    err(reSerializationError)
+    return err(ReliabilityError.reSerializationError)
 
 proc deserializeBloomFilter*(data: seq[byte]): Result[BloomFilter, ReliabilityError] =
   if data.len == 0:
-    return err(reDeserializationError)
+    return err(ReliabilityError.reDeserializationError)
     
   try:
     let pb = initProtoBuffer(data)
@@ -108,8 +107,10 @@ proc deserializeBloomFilter*(data: seq[byte]): Result[BloomFilter, ReliabilityEr
     # Convert bytes back to intArray
     var intArray = newSeq[int](bytes.len div sizeof(int))
     for i in 0 ..< intArray.len:
+      var leVal: int
       let start = i * sizeof(int)
-      copyMem(addr intArray[i], unsafeAddr bytes[start], sizeof(int))
+      copyMem(addr leVal, unsafeAddr bytes[start], sizeof(int))
+      littleEndian64(addr intArray[i], addr leVal)
     
     ok(BloomFilter(
       intArray: intArray,
@@ -119,4 +120,4 @@ proc deserializeBloomFilter*(data: seq[byte]): Result[BloomFilter, ReliabilityEr
       mBits: int(mBits)
     ))
   except:
-    err(reDeserializationError)
+    return err(ReliabilityError.reDeserializationError)

@@ -16,10 +16,6 @@ type
     sendTime*: Time
     resendAttempts*: int
 
-  TimestampedMessageID* = object
-    id*: MessageID
-    timestamp*: Time
-
 const
   DefaultMaxMessageHistory* = 1000
   DefaultMaxCausalHistory* = 10
