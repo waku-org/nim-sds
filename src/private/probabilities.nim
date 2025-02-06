@@ -9,9 +9,7 @@ type
   TErrorForK = seq[float]
   TAllErrorRates* = array[0..12, TErrorForK]
 
-var kErrors* {.threadvar.}: TAllErrorRates
-
-kErrors = [
+const kErrors*: TAllErrorRates = [
   @[1.0],
   @[1.0, 1.0, 0.3930000000, 0.2830000000, 0.2210000000, 0.1810000000,
       0.1540000000, 0.1330000000, 0.1180000000, 0.1050000000, 0.0952000000,

@@ -1,6 +1,6 @@
 nimcache
 nimcache/*
-tests/bloom
+tests/test_bloom
 nim-bloom/bloom
 .DS_Store
 src/.DS_Store

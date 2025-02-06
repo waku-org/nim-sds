@@ -1,13 +1,14 @@
 import std/times
 
 type
-  MessageID* = string
+  MessageID* = seq[byte]
+  ChannelID* = seq[byte]
 
   Message* = object
     messageId*: MessageID
     lamportTimestamp*: int64
     causalHistory*: seq[MessageID]
-    channelId*: string
+    channelId*: ChannelID
     content*: seq[byte]
     bloomFilter*: seq[byte]
 

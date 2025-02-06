@@ -1,4 +1,5 @@
 import std/[times, locks]
+import chronicles
 import ./[rolling_bloom_filter, message]
 
 type
@@ -9,10 +10,10 @@ type
     bloomFilterErrorRate*: float
     maxMessageHistory*: int
     maxCausalHistory*: int
-    resendInterval*: times.Duration
+    resendInterval*: Duration
     maxResendAttempts*: int
-    syncMessageInterval*: times.Duration
-    bufferSweepInterval*: times.Duration
+    syncMessageInterval*: Duration
+    bufferSweepInterval*: Duration
 
   ReliabilityManager* = ref object
     lamportTimestamp*: int64
@@ -20,7 +21,7 @@ type
     bloomFilter*: RollingBloomFilter
     outgoingBuffer*: seq[UnacknowledgedMessage]
     incomingBuffer*: seq[Message]
-    channelId*: string
+    channelId*: ChannelID
     config*: ReliabilityConfig
     lock*: Lock
     onMessageReady*: proc(messageId: MessageID) {.gcsafe.}
@@ -60,17 +61,15 @@ proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
           rm.outgoingBuffer.setLen(0)
           rm.incomingBuffer.setLen(0)
           rm.messageHistory.setLen(0)
-      except ValueError as e:
-        logError("Error during cleanup: " & e.msg)
       except Exception:
-        logError("Error during cleanup: " & getCurrentExceptionMsg())
+        error "Error during cleanup", msg = getCurrentExceptionMsg()
 
 proc cleanBloomFilter*(rm: ReliabilityManager) {.gcsafe, raises: [].} =
   withLock rm.lock:
     try:
       rm.bloomFilter.clean()
     except Exception:
-      logError("Failed to clean ReliabilityManager bloom filter: " & getCurrentExceptionMsg())
+      error "Failed to clean bloom filter", msg = getCurrentExceptionMsg()
 
 proc addToHistory*(rm: ReliabilityManager, msgId: MessageID) {.gcsafe, raises: [].} =
   rm.messageHistory.add(msgId)
