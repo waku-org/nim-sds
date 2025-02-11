@@ -3,9 +3,9 @@ import std/options
 import endians
 import ../src/[message, protobufutil, bloom, reliability_utils]
 
-proc encode*(msg: Message): ProtoBuffer =
+proc encode*(msg: SdsMessage): ProtoBuffer =
   var pb = initProtoBuffer()
-  
+
   pb.write(1, msg.messageId)
   pb.write(2, uint64(msg.lamportTimestamp))
 
@@ -16,12 +16,12 @@ proc encode*(msg: Message): ProtoBuffer =
   pb.write(5, msg.content)
   pb.write(6, msg.bloomFilter)
   pb.finish()
-  
+
   pb
 
-proc decode*(T: type Message, buffer: seq[byte]): ProtobufResult[T] =
+proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
   let pb = initProtoBuffer(buffer)
-  var msg = Message()
+  var msg = SdsMessage()
 
   if not ?pb.getField(1, msg.messageId):
     return err(ProtobufError.missingRequiredField("messageId"))
@@ -43,22 +43,22 @@ proc decode*(T: type Message, buffer: seq[byte]): ProtobufResult[T] =
     return err(ProtobufError.missingRequiredField("content"))
 
   if not ?pb.getField(6, msg.bloomFilter):
-    msg.bloomFilter = @[]  # Empty if not present
+    msg.bloomFilter = @[] # Empty if not present
 
   ok(msg)
 
-proc serializeMessage*(msg: Message): Result[seq[byte], ReliabilityError] = 
+proc serializeMessage*(msg: SdsMessage): Result[seq[byte], ReliabilityError] =
   let pb = encode(msg)
   ok(pb.buffer)
 
-proc deserializeMessage*(data: seq[byte]): Result[Message, ReliabilityError] =
-  let msg = Message.decode(data).valueOr:
+proc deserializeMessage*(data: seq[byte]): Result[SdsMessage, ReliabilityError] =
+  let msg = SdsMessage.decode(data).valueOr:
     return err(ReliabilityError.reDeserializationError)
   ok(msg)
 
 proc serializeBloomFilter*(filter: BloomFilter): Result[seq[byte], ReliabilityError] =
   var pb = initProtoBuffer()
-    
+
   # Convert intArray to bytes
   try:
     var bytes = newSeq[byte](filter.intArray.len * sizeof(int))
@@ -67,14 +67,14 @@ proc serializeBloomFilter*(filter: BloomFilter): Result[seq[byte], ReliabilityEr
       littleEndian64(addr leVal, unsafeAddr val)
       let start = i * sizeof(int)
       copyMem(addr bytes[start], addr leVal, sizeof(int))
-    
+
     pb.write(1, bytes)
     pb.write(2, uint64(filter.capacity))
     pb.write(3, uint64(filter.errorRate * 1_000_000))
     pb.write(4, uint64(filter.kHashes))
     pb.write(5, uint64(filter.mBits))
   except:
-     return err(ReliabilityError.reSerializationError)
+    return err(ReliabilityError.reSerializationError)
 
   pb.finish()
   ok(pb.buffer)
@@ -82,19 +82,17 @@ proc serializeBloomFilter*(filter: BloomFilter): Result[seq[byte], ReliabilityEr
 proc deserializeBloomFilter*(data: seq[byte]): Result[BloomFilter, ReliabilityError] =
   if data.len == 0:
     return err(ReliabilityError.reDeserializationError)
-    
+
   let pb = initProtoBuffer(data)
   var bytes: seq[byte]
   var cap, errRate, kHashes, mBits: uint64
 
-  try:  
-    if not pb.getField(1, bytes).get() or
-       not pb.getField(2, cap).get() or
-       not pb.getField(3, errRate).get() or
-       not pb.getField(4, kHashes).get() or
-       not pb.getField(5, mBits).get():
+  try:
+    if not pb.getField(1, bytes).get() or not pb.getField(2, cap).get() or
+        not pb.getField(3, errRate).get() or not pb.getField(4, kHashes).get() or
+        not pb.getField(5, mBits).get():
       return err(ReliabilityError.reDeserializationError)
-    
+
     # Convert bytes back to intArray
     var intArray = newSeq[int](bytes.len div sizeof(int))
     for i in 0 ..< intArray.len:
@@ -102,13 +100,15 @@ proc deserializeBloomFilter*(data: seq[byte]): Result[BloomFilter, ReliabilityEr
       let start = i * sizeof(int)
       copyMem(addr leVal, unsafeAddr bytes[start], sizeof(int))
       littleEndian64(addr intArray[i], addr leVal)
-    
-    ok(BloomFilter(
-      intArray: intArray,
-      capacity: int(cap),
-      errorRate: float(errRate) / 1_000_000,
-      kHashes: int(kHashes),
-      mBits: int(mBits)
-    ))
+
+    ok(
+      BloomFilter(
+        intArray: intArray,
+        capacity: int(cap),
+        errorRate: float(errRate) / 1_000_000,
+        kHashes: int(kHashes),
+        mBits: int(mBits),
+      )
+    )
   except:
     return err(ReliabilityError.reDeserializationError)

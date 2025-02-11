@@ -17,16 +17,17 @@ type
 
   ReliabilityManager* = ref object
     lamportTimestamp*: int64
-    messageHistory*: seq[MessageID]
+    messageHistory*: seq[SdsMessageID]
     bloomFilter*: RollingBloomFilter
     outgoingBuffer*: seq[UnacknowledgedMessage]
-    incomingBuffer*: seq[Message]
-    channelId*: ChannelID
+    incomingBuffer*: seq[SdsMessage]
+    channelId*: SdsChannelID
     config*: ReliabilityConfig
     lock*: Lock
-    onMessageReady*: proc(messageId: MessageID) {.gcsafe.}
-    onMessageSent*: proc(messageId: MessageID) {.gcsafe.}
-    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
+    onMessageReady*: proc(messageId: SdsMessageID) {.gcsafe.}
+    onMessageSent*: proc(messageId: SdsMessageID) {.gcsafe.}
+    onMissingDependencies*:
+      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID]) {.gcsafe.}
     onPeriodicSync*: PeriodicSyncCallback
 
   ReliabilityError* {.pure.} = enum
@@ -50,39 +51,40 @@ proc defaultConfig*(): ReliabilityConfig =
     resendInterval: DefaultResendInterval,
     maxResendAttempts: DefaultMaxResendAttempts,
     syncMessageInterval: DefaultSyncMessageInterval,
-    bufferSweepInterval: DefaultBufferSweepInterval
+    bufferSweepInterval: DefaultBufferSweepInterval,
   )
 
 proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
   if not rm.isNil():
-    {.gcsafe.}:
-      try:
-        withLock rm.lock:
-          rm.outgoingBuffer.setLen(0)
-          rm.incomingBuffer.setLen(0)
-          rm.messageHistory.setLen(0)
-      except Exception:
-        error "Error during cleanup", msg = getCurrentExceptionMsg()
+    try:
+      withLock rm.lock:
+        rm.outgoingBuffer.setLen(0)
+        rm.incomingBuffer.setLen(0)
+        rm.messageHistory.setLen(0)
+    except Exception:
+      error "Error during cleanup", error = getCurrentExceptionMsg()
 
 proc cleanBloomFilter*(rm: ReliabilityManager) {.gcsafe, raises: [].} =
   withLock rm.lock:
     try:
       rm.bloomFilter.clean()
     except Exception:
-      error "Failed to clean bloom filter", msg = getCurrentExceptionMsg()
+      error "Failed to clean bloom filter", error = getCurrentExceptionMsg()
 
-proc addToHistory*(rm: ReliabilityManager, msgId: MessageID) {.gcsafe, raises: [].} =
+proc addToHistory*(rm: ReliabilityManager, msgId: SdsMessageID) {.gcsafe, raises: [].} =
   rm.messageHistory.add(msgId)
   if rm.messageHistory.len > rm.config.maxMessageHistory:
     rm.messageHistory.delete(0)
 
-proc updateLamportTimestamp*(rm: ReliabilityManager, msgTs: int64) {.gcsafe, raises: [].} =
+proc updateLamportTimestamp*(
+    rm: ReliabilityManager, msgTs: int64
+) {.gcsafe, raises: [].} =
   rm.lamportTimestamp = max(msgTs, rm.lamportTimestamp) + 1
 
-proc getRecentMessageIDs*(rm: ReliabilityManager, n: int): seq[MessageID] =
+proc getRecentSdsMessageIDs*(rm: ReliabilityManager, n: int): seq[SdsMessageID] =
   result = rm.messageHistory[max(0, rm.messageHistory.len - n) .. ^1]
 
-proc getMessageHistory*(rm: ReliabilityManager): seq[MessageID] =
+proc getMessageHistory*(rm: ReliabilityManager): seq[SdsMessageID] =
   withLock rm.lock:
     result = rm.messageHistory
 
@@ -90,6 +92,6 @@ proc getOutgoingBuffer*(rm: ReliabilityManager): seq[UnacknowledgedMessage] =
   withLock rm.lock:
     result = rm.outgoingBuffer
 
-proc getIncomingBuffer*(rm: ReliabilityManager): seq[Message] =
+proc getIncomingBuffer*(rm: ReliabilityManager): seq[SdsMessage] =
   withLock rm.lock:
     result = rm.incomingBuffer

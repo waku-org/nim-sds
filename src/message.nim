@@ -1,19 +1,19 @@
 import std/times
 
 type
-  MessageID* = seq[byte]
-  ChannelID* = seq[byte]
+  SdsMessageID* = seq[byte]
+  SdsChannelID* = seq[byte]
 
-  Message* = object
-    messageId*: MessageID
+  SdsMessage* = object
+    messageId*: SdsMessageID
     lamportTimestamp*: int64
-    causalHistory*: seq[MessageID]
-    channelId*: ChannelID
+    causalHistory*: seq[SdsMessageID]
+    channelId*: SdsChannelID
     content*: seq[byte]
     bloomFilter*: seq[byte]
 
   UnacknowledgedMessage* = object
-    message*: Message
+    message*: SdsMessage
     sendTime*: Time
     resendAttempts*: int
 
@@ -24,4 +24,4 @@ const
   DefaultMaxResendAttempts* = 5
   DefaultSyncMessageInterval* = initDuration(seconds = 30)
   DefaultBufferSweepInterval* = initDuration(seconds = 60)
-  MaxMessageSize* = 1024 * 1024  # 1 MB
+  MaxMessageSize* = 1024 * 1024 # 1 MB
