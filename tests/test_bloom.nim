@@ -1,7 +1,6 @@
 import unittest, results, strutils
 import ../src/bloom
 from random import rand, randomize
-import ../src/[message, protobuf, protobufutil, reliability_utils, rolling_bloom_filter]
 
 suite "bloom filter":
   setup:

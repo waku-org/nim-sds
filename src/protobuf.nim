@@ -12,7 +12,8 @@ proc encode*(msg: SdsMessage): ProtoBuffer =
   for hist in msg.causalHistory:
     pb.write(3, hist)
 
-  pb.write(4, msg.channelId)
+  if msg.channelId.isSome():
+    pb.write(4, msg.channelId.get())
   pb.write(5, msg.content)
   pb.write(6, msg.bloomFilter)
   pb.finish()
@@ -36,8 +37,11 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
   if histResult.isOk:
     msg.causalHistory = causalHistory
 
-  if not ?pb.getField(4, msg.channelId):
-    return err(ProtobufError.missingRequiredField("channelId"))
+  var channelId: seq[byte]
+  if ?pb.getField(4, channelId):
+    msg.channelId = some(channelId)
+  else:
+    msg.channelId = none[SdsChannelID]()
 
   if not ?pb.getField(5, msg.content):
     return err(ProtobufError.missingRequiredField("content"))

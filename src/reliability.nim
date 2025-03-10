@@ -1,9 +1,9 @@
-import std/[times, locks, tables, sets, sequtils]
+import std/[times, locks, tables, sets, options]
 import chronos, results, chronicles
 import ./[message, protobuf, reliability_utils, rolling_bloom_filter]
 
 proc newReliabilityManager*(
-    channelId: SdsChannelID, config: ReliabilityConfig = defaultConfig()
+    channelId: Option[SdsChannelID], config: ReliabilityConfig = defaultConfig()
 ): Result[ReliabilityManager, ReliabilityError] =
   ## Creates a new ReliabilityManager with the specified channel ID and configuration.
   ##
@@ -13,7 +13,7 @@ proc newReliabilityManager*(
   ##
   ## Returns:
   ##   A Result containing either a new ReliabilityManager instance or an error.
-  if channelId.len == 0:
+  if not channelId.isSome():
     return err(ReliabilityError.reInvalidArgument)
 
   try:
@@ -25,7 +25,7 @@ proc newReliabilityManager*(
       messageHistory: @[],
       bloomFilter: bloomFilter,
       outgoingBuffer: @[],
-      incomingBuffer: @[],
+      incomingBuffer: initTable[SdsMessageID, IncomingMessage](),
       channelId: channelId,
       config: config,
     )
@@ -35,23 +35,27 @@ proc newReliabilityManager*(
     error "Failed to create ReliabilityManager", msg = getCurrentExceptionMsg()
     return err(ReliabilityError.reOutOfMemory)
 
+proc isAcknowledged*(
+    msg: UnacknowledgedMessage,
+    causalHistory: seq[SdsMessageID],
+    rbf: Option[RollingBloomFilter],
+): bool =
+  if msg.message.messageId in causalHistory:
+    return true
+
+  if rbf.isSome():
+    return rbf.get().contains(msg.message.messageId)
+
+  false
+
 proc reviewAckStatus(rm: ReliabilityManager, msg: SdsMessage) {.gcsafe.} =
-  var i = 0
-  while i < rm.outgoingBuffer.len:
-    var acknowledged = false
-    let outMsg = rm.outgoingBuffer[i]
-
-    # Check if message is in causal history
-    for msgID in msg.causalHistory:
-      if outMsg.message.messageId == msgID:
-        acknowledged = true
-        break
-
-    # Check bloom filter if not already acknowledged
-    if not acknowledged and msg.bloomFilter.len > 0:
-      let bfResult = deserializeBloomFilter(msg.bloomFilter)
-      if bfResult.isOk():
-        var rbf = RollingBloomFilter(
+  # Parse bloom filter
+  var rbf: Option[RollingBloomFilter]
+  if msg.bloomFilter.len > 0:
+    let bfResult = deserializeBloomFilter(msg.bloomFilter)
+    if bfResult.isOk():
+      rbf = some(
+        RollingBloomFilter(
           filter: bfResult.get(),
           capacity: bfResult.get().capacity,
           minCapacity: (
@@ -62,17 +66,27 @@ proc reviewAckStatus(rm: ReliabilityManager, msg: SdsMessage) {.gcsafe.} =
           ).int,
           messages: @[],
         )
-        if rbf.contains(outMsg.message.messageId):
-          acknowledged = true
-      else:
-        error "Failed to deserialize bloom filter", error = bfResult.error
+      )
+    else:
+      error "Failed to deserialize bloom filter", error = bfResult.error
+      rbf = none[RollingBloomFilter]()
+  else:
+    rbf = none[RollingBloomFilter]()
 
-    if acknowledged:
+  # Keep track of indices to delete
+  var toDelete: seq[int] = @[]
+  var i = 0
+
+  while i < rm.outgoingBuffer.len:
+    let outMsg = rm.outgoingBuffer[i]
+    if outMsg.isAcknowledged(msg.causalHistory, rbf):
       if not rm.onMessageSent.isNil():
         rm.onMessageSent(outMsg.message.messageId)
-      rm.outgoingBuffer.delete(i)
-    else:
-      inc i
+      toDelete.add(i)
+    inc i
+
+  for i in countdown(toDelete.high, 0): # Delete in reverse order to maintain indices
+    rm.outgoingBuffer.delete(toDelete[i])
 
 proc wrapOutgoingMessage*(
     rm: ReliabilityManager, message: seq[byte], messageId: SdsMessageID
@@ -127,43 +141,36 @@ proc processIncomingBuffer(rm: ReliabilityManager) {.gcsafe.} =
     if rm.incomingBuffer.len == 0:
       return
 
-    # Create dependency map
-    var dependencies = initTable[SdsMessageID, seq[SdsMessageID]]()
-    var readyToProcess: seq[SdsMessageID] = @[]
     var processed = initHashSet[SdsMessageID]()
+    var readyToProcess = newSeq[SdsMessageID]()
 
-    # Build dependency graph and find initially ready messages
-    for msg in rm.incomingBuffer:
-      var hasMissingDeps = false
-      for depId in msg.causalHistory:
-        if not rm.bloomFilter.contains(depId):
-          hasMissingDeps = true
-          if depId notin dependencies:
-            dependencies[depId] = @[]
-          dependencies[depId].add(msg.messageId)
-
-      if not hasMissingDeps:
-        readyToProcess.add(msg.messageId)
+    # Find initially ready messages
+    for msgId, entry in rm.incomingBuffer:
+      if entry.missingDeps.len == 0:
+        readyToProcess.add(msgId)
 
     while readyToProcess.len > 0:
       let msgId = readyToProcess.pop()
       if msgId in processed:
         continue
 
-      # Process this message
-      for msg in rm.incomingBuffer:
-        if msg.messageId == msgId:
-          rm.addToHistory(msg.messageId)
-          if not rm.onMessageReady.isNil():
-            rm.onMessageReady(msg.messageId)
-          processed.incl(msgId)
+      if msgId in rm.incomingBuffer:
+        rm.addToHistory(msgId)
+        if not rm.onMessageReady.isNil():
+          rm.onMessageReady(msgId)
+        processed.incl(msgId)
 
-          # Add any dependent messages that might now be ready
-          if msgId in dependencies:
-            readyToProcess.add(dependencies[msgId])
-          break
+        # Update dependencies for remaining messages
+        for remainingId, entry in rm.incomingBuffer:
+          if remainingId notin processed:
+            if msgId in entry.missingDeps:
+              rm.incomingBuffer[remainingId].missingDeps.excl(msgId)
+              if rm.incomingBuffer[remainingId].missingDeps.len == 0:
+                readyToProcess.add(remainingId)
 
-    rm.incomingBuffer = rm.incomingBuffer.filterIt(it.messageId notin processed)
+    # Remove processed messages
+    for msgId in processed:
+      rm.incomingBuffer.del(msgId)
 
 proc unwrapReceivedMessage*(
     rm: ReliabilityManager, message: seq[byte]
@@ -179,7 +186,7 @@ proc unwrapReceivedMessage*(
     let msg = deserializeMessage(message).valueOr:
       return err(ReliabilityError.reDeserializationError)
 
-    if rm.bloomFilter.contains(msg.messageId):
+    if msg.messageId in rm.messageHistory:
       return ok((msg.content, @[]))
 
     rm.bloomFilter.add(msg.messageId)
@@ -190,21 +197,21 @@ proc unwrapReceivedMessage*(
     # Review ACK status for outgoing messages
     rm.reviewAckStatus(msg)
 
-    var missingDeps: seq[SdsMessageID] = @[]
-    for depId in msg.causalHistory:
-      if not rm.bloomFilter.contains(depId):
-        missingDeps.add(depId)
+    var missingDeps = rm.checkDependencies(msg.causalHistory)
 
     if missingDeps.len == 0:
       # Check if any dependencies are still in incoming buffer
       var depsInBuffer = false
-      for bufferedMsg in rm.incomingBuffer:
-        if bufferedMsg.messageId in msg.causalHistory:
+      for msgId, entry in rm.incomingBuffer.pairs():
+        if msgId in msg.causalHistory:
           depsInBuffer = true
           break
 
       if depsInBuffer:
-        rm.incomingBuffer.add(msg)
+        rm.incomingBuffer[msg.messageId] = IncomingMessage(
+          message: msg,
+          missingDeps: initHashSet[SdsMessageID]()
+        )
       else:
         # All dependencies met, add to history
         rm.addToHistory(msg.messageId)
@@ -212,7 +219,10 @@ proc unwrapReceivedMessage*(
         if not rm.onMessageReady.isNil():
           rm.onMessageReady(msg.messageId)
     else:
-      rm.incomingBuffer.add(msg)
+      rm.incomingBuffer[msg.messageId] = IncomingMessage(
+        message: msg,
+        missingDeps: missingDeps.toHashSet()
+      )
       if not rm.onMissingDependencies.isNil():
         rm.onMissingDependencies(msg.messageId, missingDeps)
 
@@ -237,6 +247,11 @@ proc markDependenciesMet*(
       if not rm.bloomFilter.contains(msgId):
         rm.bloomFilter.add(msgId)
         # rm.addToHistory(msgId) -- not needed as this proc usually called when msg in long-term storage of application?
+
+      # Update any pending messages that depend on this one
+      for pendingId, entry in rm.incomingBuffer:
+        if msgId in entry.missingDeps:
+          rm.incomingBuffer[pendingId].missingDeps.excl(msgId)
 
     rm.processIncomingBuffer()
     return ok()
@@ -329,7 +344,7 @@ proc resetReliabilityManager*(rm: ReliabilityManager): Result[void, ReliabilityE
       rm.lamportTimestamp = 0
       rm.messageHistory.setLen(0)
       rm.outgoingBuffer.setLen(0)
-      rm.incomingBuffer.setLen(0)
+      rm.incomingBuffer.clear()
       rm.bloomFilter = newRollingBloomFilter(
         rm.config.bloomFilterCapacity, rm.config.bloomFilterErrorRate
       )
