@@ -1,4 +1,4 @@
-import std/times
+import std/[times, options, sets]
 
 type
   SdsMessageID* = seq[byte]
@@ -8,7 +8,7 @@ type
     messageId*: SdsMessageID
     lamportTimestamp*: int64
     causalHistory*: seq[SdsMessageID]
-    channelId*: SdsChannelID
+    channelId*: Option[SdsChannelID]
     content*: seq[byte]
     bloomFilter*: seq[byte]
 
@@ -16,6 +16,10 @@ type
     message*: SdsMessage
     sendTime*: Time
     resendAttempts*: int
+
+  IncomingMessage* = object
+    message*: SdsMessage
+    missingDeps*: HashSet[SdsMessageID]
 
 const
   DefaultMaxMessageHistory* = 1000

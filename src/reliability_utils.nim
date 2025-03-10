@@ -1,4 +1,4 @@
-import std/[times, locks]
+import std/[times, locks, options]
 import chronicles
 import ./[rolling_bloom_filter, message]
 
@@ -20,8 +20,8 @@ type
     messageHistory*: seq[SdsMessageID]
     bloomFilter*: RollingBloomFilter
     outgoingBuffer*: seq[UnacknowledgedMessage]
-    incomingBuffer*: seq[SdsMessage]
-    channelId*: SdsChannelID
+    incomingBuffer*: Table[SdsMessageID, IncomingMessage]
+    channelId*: Option[SdsChannelID]
     config*: ReliabilityConfig
     lock*: Lock
     onMessageReady*: proc(messageId: SdsMessageID) {.gcsafe.}
@@ -59,7 +59,7 @@ proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
     try:
       withLock rm.lock:
         rm.outgoingBuffer.setLen(0)
-        rm.incomingBuffer.setLen(0)
+        rm.incomingBuffer.clear()
         rm.messageHistory.setLen(0)
     except Exception:
       error "Error during cleanup", error = getCurrentExceptionMsg()
@@ -84,6 +84,15 @@ proc updateLamportTimestamp*(
 proc getRecentSdsMessageIDs*(rm: ReliabilityManager, n: int): seq[SdsMessageID] =
   result = rm.messageHistory[max(0, rm.messageHistory.len - n) .. ^1]
 
+proc checkDependencies*(
+    rm: ReliabilityManager, deps: seq[SdsMessageID]
+): seq[SdsMessageID] =
+  var missingDeps: seq[SdsMessageID] = @[]
+  for depId in deps:
+    if depId notin rm.messageHistory:
+      missingDeps.add(depId)
+  return missingDeps
+
 proc getMessageHistory*(rm: ReliabilityManager): seq[SdsMessageID] =
   withLock rm.lock:
     result = rm.messageHistory
@@ -92,6 +101,8 @@ proc getOutgoingBuffer*(rm: ReliabilityManager): seq[UnacknowledgedMessage] =
   withLock rm.lock:
     result = rm.outgoingBuffer
 
-proc getIncomingBuffer*(rm: ReliabilityManager): seq[SdsMessage] =
+proc getIncomingBuffer*(
+    rm: ReliabilityManager
+): Table[SdsMessageID, message.IncomingMessage] =
   withLock rm.lock:
     result = rm.incomingBuffer
