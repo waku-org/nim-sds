@@ -1,3 +1,6 @@
-
 .DS_Store
 tests/test_reliability
+tests/bloom
+nph
+bindings/generated*
+do_not_commit
