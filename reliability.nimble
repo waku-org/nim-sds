@@ -9,7 +9,6 @@ srcDir        = "src"
 requires "nim >= 2.0.8"
 requires "chronicles"
 requires "libp2p"
-requires "genny >= 0.1.0"
 
 # Tasks
 task test, "Run the test suite":

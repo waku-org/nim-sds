@@ -2,5 +2,6 @@
 tests/test_reliability
 tests/bloom
 nph
-bindings/generated*
+docs
+for_reference
 do_not_commit

@@ -1,242 +1,283 @@
-import genny
-import std/[times, strutils]
+import std/[locks, typetraits]
+import chronos
 import results
-import ../src/[reliability, message, reliability_utils, rolling_bloom_filter]
+import ../src/[reliability, reliability_utils, message]
 
-# Define required sequence wrapper types for C FFI
+# --- C Type Definitions  ---
+
 type
-  SeqByte* = ref object
-    s*: seq[byte]
-  
-  SeqMessageID* = ref object
-    s*: seq[MessageID]
-  
-  SeqMessage* = ref object
-    s*: seq[Message]
-  
-  SeqUnacknowledgedMessage* = ref object
-    s*: seq[UnacknowledgedMessage]
+  CReliabilityManagerHandle* = pointer
 
-# Error handling
-var lastError: ReliabilityError
+  CResult* {.importc: "CResult", header: "bindings.h", bycopy.} = object
+    is_ok*: bool
+    error_message*: cstring
 
-proc takeError(): string =
-  result = $lastError
-  lastError = ReliabilityError.reInternalError  # Reset to default
+  CWrapResult* {.importc: "CWrapResult", header: "bindings.h", bycopy.} = object
+    base_result*: CResult
+    message*: pointer
+    message_len*: csize
 
-proc checkError(): bool =
-  result = lastError != ReliabilityError.reInternalError
+  CUnwrapResult* {.importc: "CUnwrapResult", header: "bindings.h", bycopy.} = object
+    base_result*: CResult
+    message*: pointer
+    message_len*: csize
+    missing_deps*: ptr ptr cstring
+    missing_deps_count*: csize
 
-# Callback function types for C FFI
-type
-  CMessageReadyCallback* = proc(messageId: cstring) {.cdecl, gcsafe.}
-  CMessageSentCallback* = proc(messageId: cstring) {.cdecl, gcsafe.}
-  CMissingDepsCallback* = proc(messageId: cstring, missingDeps: cstring, count: cint) {.cdecl, gcsafe.}
-  CPeriodicSyncCallback* = proc() {.cdecl, gcsafe.}
+  # Callback Types
+  CMessageReadyCallback* = proc (messageID: cstring) {.cdecl, gcsafe, raises: [].}
+  CMessageSentCallback* = proc (messageID: cstring) {.cdecl, gcsafe, raises: [].}
+  CMissingDependenciesCallback* = proc (messageID: cstring, missingDeps: ptr ptr cstring, missingDepsCount: csize) {.cdecl, gcsafe, raises: [].}
+  CPeriodicSyncCallback* = proc (user_data: pointer) {.cdecl, gcsafe, raises: [].}
 
-# Global callback storage
-var
-  onMessageReadyCallback: CMessageReadyCallback
-  onMessageSentCallback: CMessageSentCallback
-  onMissingDepsCallback: CMissingDepsCallback
-  onPeriodicSyncCallback: CPeriodicSyncCallback
+# --- Memory Management Helpers ---
 
-# Register callbacks
-proc registerMessageReadyCallback*(callback: CMessageReadyCallback) =
-  onMessageReadyCallback = callback
+proc allocCString*(s: string): cstring {.inline, gcsafe.} =
+  if s.len == 0: return nil
+  result = cast[cstring](allocShared(s.len + 1))
+  copyMem(result, s.cstring, s.len + 1)
 
-proc registerMessageSentCallback*(callback: CMessageSentCallback) =
-  onMessageSentCallback = callback
+proc allocSeqByte*(s: seq[byte]): (pointer, csize) {.inline, gcsafe.} =
+  if s.len == 0: return (nil, 0)
+  let len = s.len
+  let bufferPtr = allocShared(len)
+  if len > 0:
+    copyMem(bufferPtr, cast[pointer](s[0].unsafeAddr), len.Natural)
+  return (bufferPtr, len.csize)
 
-proc registerMissingDepsCallback*(callback: CMissingDepsCallback) =
-  onMissingDepsCallback = callback
+proc allocSeqCString*(s: seq[string]): (ptr ptr cstring, csize) {.inline, gcsafe, cdecl.} =
+  if s.len == 0: return (nil, 0)
+  let count = s.len
+  let arrPtr = cast[ptr ptr cstring](allocShared(count * sizeof(cstring)))
+  for i in 0..<count:
+    let tempCStr: cstring = allocCString(s[i])
+    copyMem(addr arrPtr[i], addr tempCStr, sizeof(cstring))
+  return (arrPtr, count.csize)
 
-proc registerPeriodicSyncCallback*(callback: CPeriodicSyncCallback) =
-  onPeriodicSyncCallback = callback
+proc freeCString*(cs: cstring) {.inline, gcsafe.} =
+  if cs != nil: deallocShared(cs)
 
-# Individual adapter functions
-proc onMessageReadyAdapter(messageId: MessageID) {.gcsafe, raises: [].} =
-  if onMessageReadyCallback != nil:
-    try:
-      onMessageReadyCallback(cstring(messageId))
-    except:
-      discard # Ignore exceptions
+proc freeSeqByte*(bufferPtr: pointer) {.inline, gcsafe, cdecl.} =
+  if bufferPtr != nil: deallocShared(bufferPtr)
 
-proc onMessageSentAdapter(messageId: MessageID) {.gcsafe, raises: [].} =
-  if onMessageSentCallback != nil:
-    try:
-      onMessageSentCallback(cstring(messageId))
-    except:
-      discard
+proc freeSeqCString*(arrPtr: ptr ptr cstring, count: csize) {.inline, gcsafe, cdecl.} =
+  if arrPtr != nil:
+    for i in 0..<count:
+      freeCString(cast[cstring](arrPtr[i]))
+    deallocShared(arrPtr)
 
-proc onMissingDependenciesAdapter(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe, raises: [].} =
-  if onMissingDepsCallback != nil and missingDeps.len > 0:
-    try:
-      let joinedDeps = missingDeps.join(",")
-      onMissingDepsCallback(cstring(messageId), cstring(joinedDeps), cint(missingDeps.len))
-    except:
-      discard
+# --- Result Conversion Helpers ---
 
-proc onPeriodicSyncAdapter() {.gcsafe, raises: [].} =
-  if onPeriodicSyncCallback != nil:
-    try:
-      onPeriodicSyncCallback()
-    except:
-      discard
+proc toCResultOk*(): CResult =
+  CResult(is_ok: true, error_message: nil)
 
-# Apply registered callbacks to a ReliabilityManager
-proc applyCallbacks*(rm: ReliabilityManager): bool =
-  if rm == nil:
-    lastError = ReliabilityError.reInvalidArgument
-    return false
-  
-  try:
-    rm.setCallbacks(
-      onMessageReadyAdapter,
-      onMessageSentAdapter,
-      onMissingDependenciesAdapter,
-      onPeriodicSyncAdapter
+proc toCResultErr*(err: ReliabilityError): CResult =
+  CResult(is_ok: false, error_message: allocCString($err))
+
+proc toCResultErrStr*(errMsg: string): CResult =
+  CResult(is_ok: false, error_message: allocCString(errMsg))
+
+# --- Callback Wrappers (Nim -> C) ---
+# These still accept the ReliabilityManager instance directly
+
+# These wrappers now need to handle the user_data explicitly if needed,
+# but the C callbacks themselves don't take it directly anymore (except PeriodicSync).
+# The user_data is stored in rm.cUserData.
+
+proc nimMessageReadyCallback(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+  let cbPtr = rm.cMessageReadyCallback
+  if cbPtr != nil:
+    let cb = cast[CMessageReadyCallback](cbPtr)
+    # Call the C callback without user_data, as per the updated typedef
+    cb(messageId.cstring)
+
+proc nimMessageSentCallback(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+  let cbPtr = rm.cMessageSentCallback
+  if cbPtr != nil:
+    let cb = cast[CMessageSentCallback](cbPtr)
+    # Call the C callback without user_data
+    cb(messageId.cstring)
+
+proc nimMissingDependenciesCallback(rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} =
+  let cbPtr = rm.cMissingDependenciesCallback
+  if cbPtr != nil:
+    var cDeps = newSeq[cstring](missingDeps.len)
+    for i, dep in missingDeps:
+      cDeps[i] = dep.cstring
+    let cDepsPtr = if cDeps.len > 0: cDeps[0].addr else: nil
+    let cb = cast[CMissingDependenciesCallback](cbPtr)
+    # Call the C callback without user_data
+    cb(messageId.cstring, cast[ptr ptr cstring](cDepsPtr), missingDeps.len.csize)
+
+proc nimPeriodicSyncCallback(rm: ReliabilityManager) {.gcsafe.} =
+  let cbPtr = rm.cPeriodicSyncCallback
+  if cbPtr != nil:
+    let cb = cast[CPeriodicSyncCallback](cbPtr)
+    cb(rm.cUserData)
+
+# --- Exported C Functions - Using Opaque Pointer (pointer/void*) ---
+
+proc NewReliabilityManager*(channelIdCStr: cstring): CReliabilityManagerHandle {.exportc, dynlib, cdecl, gcsafe.} =
+  let channelId = $channelIdCStr
+  if channelId.len == 0:
+    echo "Error creating ReliabilityManager: Channel ID cannot be empty"
+    return nil # Return nil pointer
+  let rmResult = newReliabilityManager(channelId)
+  if rmResult.isOk:
+    let rm = rmResult.get()
+    # Initialize C callback fields to nil
+    rm.cMessageReadyCallback = nil
+    rm.cMessageSentCallback = nil
+    rm.cMissingDependenciesCallback = nil
+    rm.cPeriodicSyncCallback = nil
+    rm.cUserData = nil
+    # Assign Nim wrappers that capture the 'rm' instance directly
+    rm.onMessageReady = proc(msgId: MessageID) {.gcsafe.} = nimMessageReadyCallback(rm, msgId)
+    rm.onMessageSent = proc(msgId: MessageID) {.gcsafe.} = nimMessageSentCallback(rm, msgId)
+    rm.onMissingDependencies = proc(msgId: MessageID, deps: seq[MessageID]) {.gcsafe.} = nimMissingDependenciesCallback(rm, msgId, deps)
+    rm.onPeriodicSync = proc() {.gcsafe.} = nimPeriodicSyncCallback(rm)
+
+    # Return the Nim ref object cast to the opaque pointer type
+    return cast[CReliabilityManagerHandle](rm)
+  else:
+    echo "Error creating ReliabilityManager: ", rmResult.error
+    return nil # Return nil pointer
+
+proc CleanupReliabilityManager*(handle: CReliabilityManagerHandle) {.exportc, dynlib, cdecl, gcsafe.} =
+  if handle != nil:
+    # Cast opaque pointer back to Nim ref type
+    let rm = cast[ReliabilityManager](handle)
+    cleanup(rm) # Call Nim cleanup
+    # Nim GC will collect 'rm' eventually as the handle is the only reference
+  else:
+    echo "Warning: CleanupReliabilityManager called with NULL handle"
+
+proc ResetReliabilityManager*(handle: CReliabilityManagerHandle): CResult {.exportc, dynlib, cdecl, gcsafe.} =
+  if handle == nil:
+    return toCResultErrStr("ReliabilityManager handle is NULL")
+  let rm = cast[ReliabilityManager](handle) # Cast opaque pointer
+  let result = resetReliabilityManager(rm)
+  if result.isOk:
+    return toCResultOk()
+  else:
+    return toCResultErr(result.error)
+
+proc WrapOutgoingMessage*(handle: CReliabilityManagerHandle, messageC: pointer, messageLen: csize, messageIdCStr: cstring): CWrapResult {.exportc, dynlib, cdecl, gcsafe.} =
+  if handle == nil:
+    return CWrapResult(base_result: toCResultErrStr("ReliabilityManager handle is NULL"))
+  let rm = cast[ReliabilityManager](handle) # Cast opaque pointer
+
+  if messageC == nil and messageLen > 0:
+     return CWrapResult(base_result: toCResultErrStr("Message pointer is NULL but length > 0"))
+  if messageIdCStr == nil:
+     return CWrapResult(base_result: toCResultErrStr("Message ID pointer is NULL"))
+
+  let messageId = $messageIdCStr
+  var messageNim: seq[byte]
+  if messageLen > 0:
+    messageNim = newSeq[byte](messageLen)
+    copyMem(messageNim[0].addr, messageC, messageLen.Natural)
+  else:
+    messageNim = @[]
+
+  let wrapResult = wrapOutgoingMessage(rm, messageNim, messageId)
+  if wrapResult.isOk:
+    let (wrappedDataPtr, wrappedDataLen) = allocSeqByte(wrapResult.get())
+    return CWrapResult(
+      base_result: toCResultOk(),
+      message: wrappedDataPtr,
+      message_len: wrappedDataLen
     )
-    return true
-  except:
-    lastError = ReliabilityError.reInternalError
-    return false
-
-# Wrapper for creating a ReliabilityManager
-proc safeNewReliabilityManager(channelId: string, config: ReliabilityConfig = defaultConfig()): ReliabilityManager =
-  let res = newReliabilityManager(channelId, config)
-  if res.isOk:
-    return res.get
   else:
-    lastError = res.error
-    return nil
+    return CWrapResult(base_result: toCResultErr(wrapResult.error))
 
-# Wrapper for wrapping outgoing messages
-proc safeWrapOutgoingMessage(rm: ReliabilityManager, message: seq[byte], messageId: MessageID): seq[byte] =
-  if rm == nil:
-    lastError = ReliabilityError.reInvalidArgument
-    return @[]
-  
-  let res = rm.wrapOutgoingMessage(message, messageId)
-  if res.isOk:
-    return res.get
+proc UnwrapReceivedMessage*(handle: CReliabilityManagerHandle, messageC: pointer, messageLen: csize): CUnwrapResult {.exportc, dynlib, cdecl, gcsafe.} =
+  if handle == nil:
+    return CUnwrapResult(base_result: toCResultErrStr("ReliabilityManager handle is NULL"))
+  let rm = cast[ReliabilityManager](handle) # Cast opaque pointer
+
+  if messageC == nil and messageLen > 0:
+     return CUnwrapResult(base_result: toCResultErrStr("Message pointer is NULL but length > 0"))
+
+  var messageNim: seq[byte]
+  if messageLen > 0:
+    messageNim = newSeq[byte](messageLen)
+    copyMem(messageNim[0].addr, messageC, messageLen.Natural)
   else:
-    lastError = res.error
-    return @[]
+    messageNim = @[]
 
-# Wrapper for unwrapping received messages
-proc safeUnwrapReceivedMessage(rm: ReliabilityManager, message: seq[byte]): tuple[message: seq[byte], missingDeps: seq[MessageID]] =
-  if rm == nil:
-    lastError = ReliabilityError.reInvalidArgument
-    return (@[], @[])
-  
-  let res = rm.unwrapReceivedMessage(message)
-  if res.isOk:
-    return res.get
+  let unwrapResult = unwrapReceivedMessage(rm, messageNim)
+  if unwrapResult.isOk:
+    let (unwrappedContent, missingDepsNim) = unwrapResult.get()
+    let (contentPtr, contentLen) = allocSeqByte(unwrappedContent)
+    let (depsPtr, depsCount) = allocSeqCString(missingDepsNim)
+    return CUnwrapResult(
+      base_result: toCResultOk(),
+      message: contentPtr,
+      message_len: contentLen,
+      missing_deps: depsPtr,
+      missing_deps_count: depsCount
+    )
   else:
-    lastError = res.error
-    return (@[], @[])
+    return CUnwrapResult(base_result: toCResultErr(unwrapResult.error))
 
-# Wrapper for marking dependencies as met
-proc safeMarkDependenciesMet(rm: ReliabilityManager, messageIds: seq[MessageID]): bool =
-  if rm == nil:
-    lastError = ReliabilityError.reInvalidArgument
-    return false
-  
-  let res = rm.markDependenciesMet(messageIds)
-  if res.isOk:
-    return true
+proc MarkDependenciesMet*(handle: CReliabilityManagerHandle, messageIDsC: ptr ptr cstring, count: csize): CResult {.exportc, dynlib, cdecl, gcsafe.} =
+  if handle == nil:
+    return toCResultErrStr("ReliabilityManager handle is NULL")
+  let rm = cast[ReliabilityManager](handle) # Cast opaque pointer
+
+  if messageIDsC == nil and count > 0:
+    return toCResultErrStr("MessageIDs pointer is NULL but count > 0")
+
+  var messageIDsNim = newSeq[string](count)
+  for i in 0..<count:
+    let currentCStr = cast[cstring](messageIDsC[i])
+    if currentCStr != nil:
+      messageIDsNim[i] = $currentCStr
+    else:
+      return toCResultErrStr("NULL message ID found in array")
+
+  let result = markDependenciesMet(rm, messageIDsNim)
+  if result.isOk:
+    return toCResultOk()
   else:
-    lastError = res.error
-    return false
+    return toCResultErr(result.error)
 
-# Helper to create a Duration from milliseconds
-proc durationFromMs(ms: int64): Duration =
-  initDuration(milliseconds = ms)
+proc RegisterCallbacks*(handle: CReliabilityManagerHandle,
+                        cMessageReady: pointer,
+                        cMessageSent: pointer,
+                        cMissingDependencies: pointer,
+                        cPeriodicSync: pointer,
+                        cUserDataPtr: pointer) {.exportc, dynlib, cdecl, gcsafe.} =
+  if handle == nil:
+    echo "Error: Cannot register callbacks: NULL ReliabilityManager handle"
+    return
+  let rm = cast[ReliabilityManager](handle) # Cast opaque pointer
+  # Lock the specific manager instance while modifying its fields
+  withLock rm.lock:
+    rm.cMessageReadyCallback = cMessageReady
+    rm.cMessageSentCallback = cMessageSent
+    rm.cMissingDependenciesCallback = cMissingDependencies
+    rm.cPeriodicSyncCallback = cPeriodicSync
+    rm.cUserData = cUserDataPtr
 
-# Wrapper for creating a ReliabilityConfig with Duration values in milliseconds
-proc configFromMs(
-  bloomFilterCapacity: int = DefaultBloomFilterCapacity,
-  bloomFilterErrorRate: float = DefaultBloomFilterErrorRate,
-  bloomFilterWindowMs: int64 = 3600000, # 1 hour default
-  maxMessageHistory: int = DefaultMaxMessageHistory,
-  maxCausalHistory: int = DefaultMaxCausalHistory,
-  resendIntervalMs: int64 = 60000, # 1 minute default
-  maxResendAttempts: int = DefaultMaxResendAttempts,
-  syncMessageIntervalMs: int64 = 30000, # 30 seconds default
-  bufferSweepIntervalMs: int64 = 60000 # 1 minute default
-): ReliabilityConfig =
-  var config = ReliabilityConfig(
-    bloomFilterCapacity: bloomFilterCapacity,
-    bloomFilterErrorRate: bloomFilterErrorRate,
-    bloomFilterWindow: durationFromMs(bloomFilterWindowMs),
-    maxMessageHistory: maxMessageHistory,
-    maxCausalHistory: maxCausalHistory,
-    resendInterval: durationFromMs(resendIntervalMs),
-    maxResendAttempts: maxResendAttempts,
-    syncMessageInterval: durationFromMs(syncMessageIntervalMs),
-    bufferSweepInterval: durationFromMs(bufferSweepIntervalMs)
-  )
-  return config
+proc StartPeriodicTasks*(handle: CReliabilityManagerHandle) {.exportc, dynlib, cdecl, gcsafe.} =
+  if handle == nil:
+    echo "Error: Cannot start periodic tasks: NULL ReliabilityManager handle"
+    return
+  let rm = cast[ReliabilityManager](handle) # Cast opaque pointer
+  startPeriodicTasks(rm)
 
-# Helper to parse comma-separated string into seq[MessageID]
-proc parseMessageIDs*(commaSeparated: string): seq[MessageID] =
-  if commaSeparated.len == 0:
-    return @[]
-  return commaSeparated.split(',')
+# --- Memory Freeing Functions - Added cdecl ---
 
-# Constants
-exportConsts:
-  DefaultBloomFilterCapacity
-  DefaultBloomFilterErrorRate
-  DefaultMaxMessageHistory
-  DefaultMaxCausalHistory
-  DefaultMaxResendAttempts
-  MaxMessageSize
+proc FreeCResultError*(result: CResult) {.exportc, dynlib, gcsafe, cdecl.} =
+  freeCString(result.error_message)
 
-# Enums
-exportEnums:
-  ReliabilityError
+proc FreeCWrapResult*(result: CWrapResult) {.exportc, dynlib, gcsafe, cdecl.} =
+  freeCString(result.base_result.error_message)
+  freeSeqByte(result.message)
 
-# Helper procs
-exportProcs:
-  checkError
-  takeError
-  configFromMs
-  durationFromMs
-  parseMessageIDs
-  registerMessageReadyCallback
-  registerMessageSentCallback
-  registerMissingDepsCallback
-  registerPeriodicSyncCallback
-  applyCallbacks
-
-# Core objects
-exportObject ReliabilityConfig:
-  constructor:
-    configFromMs(int, float, int64, int, int, int64, int, int64, int64)
-
-# Main ref object
-exportRefObject ReliabilityManager:
-  constructor:
-    safeNewReliabilityManager(string, ReliabilityConfig)
-  procs:
-    safeWrapOutgoingMessage(ReliabilityManager, seq[byte], MessageID)
-    safeUnwrapReceivedMessage(ReliabilityManager, seq[byte])
-    safeMarkDependenciesMet(ReliabilityManager, seq[MessageID])
-    checkUnacknowledgedMessages(ReliabilityManager)
-    startPeriodicTasks(ReliabilityManager)
-    cleanup(ReliabilityManager)
-    getMessageHistory(ReliabilityManager)
-    getOutgoingBuffer(ReliabilityManager)
-    getIncomingBuffer(ReliabilityManager)
-
-# Sequences
-exportSeq seq[byte]:
-  discard
-
-exportSeq seq[MessageID]:
-  discard
-
-# Finally generate the files
-writeFiles("bindings/generated", "sds_bindings")
+proc FreeCUnwrapResult*(result: CUnwrapResult) {.exportc, dynlib, gcsafe, cdecl.} =
+  freeCString(result.base_result.error_message)
+  freeSeqByte(result.message)
+  freeSeqCString(result.missing_deps, result.missing_deps_count)
