@@ -39,11 +39,18 @@ typedef struct {
 
 
 // --- Callback Function Pointer Types ---
-// Keep const char* here as these are inputs *to* the callback
-typedef void (*MessageReadyCallback)(const char* messageID);
-typedef void (*MessageSentCallback)(const char* messageID);
-typedef void (*MissingDependenciesCallback)(const char* messageID, const char** missingDeps, size_t missingDepsCount);
-typedef void (*PeriodicSyncCallback)(void* user_data);
+
+// Define event types (enum or constants)
+typedef enum {
+    EVENT_MESSAGE_READY = 1,
+    EVENT_MESSAGE_SENT = 2,
+    EVENT_MISSING_DEPENDENCIES = 3,
+    EVENT_PERIODIC_SYNC = 4
+} CEventType;
+
+// Single callback type for all events
+// Nim will call this, passing the handle and event-specific data
+typedef void (*CEventCallback)(void* handle, CEventType eventType, void* data1, void* data2, size_t data3);
 
 
 // --- Core API Functions ---
@@ -92,23 +99,17 @@ CUnwrapResult UnwrapReceivedMessage(void* handle, void* message, size_t messageL
  * @param count The number of message IDs in the array.
  * @return CResult indicating success or failure.
  */
-CResult MarkDependenciesMet(void* handle, char*** messageIDs, size_t count);
+CResult MarkDependenciesMet(void* handle, char** messageIDs, size_t count); // Reverted to char**
 
 /**
  * @brief Registers callback functions.
  * @param handle The opaque handle (void*) of the instance.
  * @param messageReady Callback for when a message is ready.
  * @param messageSent Callback for when an outgoing message is acknowledged.
- * @param missingDependencies Callback for when missing dependencies are detected.
- * @param periodicSync Callback for periodic sync suggestions.
- * @param user_data A pointer to user-defined data passed to callbacks.
+ * @param eventCallback The single callback function to handle all events.
+ * @param user_data A pointer to user-defined data (optional, could be managed in Go).
  */
-void RegisterCallbacks(void* handle,
-                       void* messageReady,
-                       void* messageSent,
-                       void* missingDependencies,
-                       void* periodicSync,
-                       void* user_data); // Keep user_data, align with Nim proc
+void RegisterCallback(void* handle, CEventCallback eventCallback, void* user_data); // Renamed and simplified
 
 /**
  * @brief Starts the background periodic tasks.

@@ -24,18 +24,10 @@ type
     channelId*: string
     config*: ReliabilityConfig
     lock*: Lock
-    # Nim callbacks (used internally or if not using C bindings)
-    onMessageReady*: proc(messageId: MessageID) {.gcsafe.}
-    onMessageSent*: proc(messageId: MessageID) {.gcsafe.}
-    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
-    onPeriodicSync*: PeriodicSyncCallback
-
-    # C callback pointers and user data (for FFI)
-    cMessageReadyCallback*: pointer
-    cMessageSentCallback*: pointer
-    cMissingDependenciesCallback*: pointer
-    cPeriodicSyncCallback*: pointer
-    cUserData*: pointer
+    onMessageReady*: proc(messageId: MessageID)
+    onMessageSent*: proc(messageId: MessageID)
+    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID])
+    onPeriodicSync*: proc()
 
   ReliabilityError* = enum
     reInvalidArgument
