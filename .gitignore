@@ -5,3 +5,5 @@ nph
 docs
 for_reference
 do_not_commit
+build/*
+sds.nims

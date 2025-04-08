@@ -2,7 +2,7 @@ package main
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/library
-#cgo LDFLAGS: -L${SRCDIR}/build -lbindings
+#cgo LDFLAGS: -L${SRCDIR}/build -llibsds
 #cgo LDFLAGS: -Wl,-rpath,${SRCDIR}/build
 
 #include <stdlib.h> // For C.free
