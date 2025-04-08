@@ -1,12 +1,12 @@
 package main
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/bindings
-#cgo LDFLAGS: -L${SRCDIR}/bindings/generated -lbindings
-#cgo LDFLAGS: -Wl,-rpath,${SRCDIR}/bindings/generated
+#cgo CFLAGS: -I${SRCDIR}/library
+#cgo LDFLAGS: -L${SRCDIR}/build -lbindings
+#cgo LDFLAGS: -Wl,-rpath,${SRCDIR}/build
 
 #include <stdlib.h> // For C.free
-#include "bindings/bindings.h" // Update include path
+#include "library/libsds.h" // Update include path
 
 // Forward declaration for the single Go callback relay function
 extern void globalCallbackRelay(void* handle, CEventType eventType, void* data1, void* data2, size_t data3);
@@ -229,6 +229,7 @@ func StartPeriodicTasks(handle ReliabilityManagerHandle) error {
 
 // globalCallbackRelay is called by Nim for all events.
 // It uses the handle to find the correct Go Callbacks struct and dispatch the call.
+//
 //export globalCallbackRelay
 func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 unsafe.Pointer, data2 unsafe.Pointer, data3 C.size_t) {
 	goHandle := ReliabilityManagerHandle(handle)
