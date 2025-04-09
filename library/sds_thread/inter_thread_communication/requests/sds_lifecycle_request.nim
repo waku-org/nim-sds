@@ -2,6 +2,7 @@ import std/[options, json, strutils, net]
 import chronos, chronicles, results, confutils, confutils/std/net
 
 import ../../../alloc
+import ../../../../src/[reliability_utils, reliability, message]
 
 type SdsLifecycleMsgType* = enum
   CREATE_RELIABILITY_MANAGER
@@ -11,7 +12,7 @@ type SdsLifecycleRequest* = object
   channelId: cstring
 
 proc createShared*(
-    T: type SdsLifecycleRequest, op: SdsLifecycleMsgType, configJson: cstring = ""
+    T: type SdsLifecycleRequest, op: SdsLifecycleMsgType, channelId: cstring = ""
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
@@ -22,7 +23,9 @@ proc destroyShared(self: ptr SdsLifecycleRequest) =
   deallocShared(self[].channelId)
   deallocShared(self)
 
-proc createReliabilityManager(channelId: cstring): Result[ReliabilityManager, string] =
+proc createReliabilityManager(
+    channelIdCStr: cstring
+): Future[Result[ReliabilityManager, string]] {.async.} =
   let channelId = $channelIdCStr
   if channelId.len == 0:
     error "Failed creating ReliabilityManager: Channel ID cannot be empty"
@@ -32,14 +35,15 @@ proc createReliabilityManager(channelId: cstring): Result[ReliabilityManager, st
     error "Failed creating reliability manager", error = error
     return err("Failed creating reliability manager: " & $error)
 
-  rm.onMessageReady = proc(msgId: MessageID) =
+  # TODO: instead of this, create events
+  #[ rm.onMessageReady = proc(msgId: MessageID) =
     nimMessageReadyCallback(rm, msgId)
   rm.onMessageSent = proc(msgId: MessageID) =
     nimMessageSentCallback(rm, msgId)
   rm.onMissingDependencies = proc(msgId: MessageID, deps: seq[MessageID]) =
     nimMissingDependenciesCallback(rm, msgId, deps)
   rm.onPeriodicSync = proc() =
-    nimPeriodicSyncCallback(rm)
+    nimPeriodicSyncCallback(rm) ]#
 
   return ok(rm)
 

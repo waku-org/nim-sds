@@ -4,7 +4,8 @@
 
 import std/json, results
 import chronos, chronos/threadsync
-import ../../ffi_types, ./requests/sds_lifecycle_request
+import
+  ../../ffi_types, ./requests/sds_lifecycle_request, ../../../src/[reliability_utils]
 
 type RequestType* {.pure.} = enum
   LIFECYCLE

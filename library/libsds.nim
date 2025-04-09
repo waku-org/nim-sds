@@ -5,13 +5,14 @@
 when defined(linux):
   {.passl: "-Wl,-soname,libsds.so".}
 
-import std/[locks, typetraits, tables] # Added tables
+import std/[locks, typetraits, tables, atomics] # Added tables
 import chronos
 import results
 import
   ./sds_thread/sds_thread,
   ./alloc,
   ./ffi_types,
+  ./sds_thread/inter_thread_communication/sds_thread_request,
   ../src/[reliability, reliability_utils, message]
 
 ################################################################################

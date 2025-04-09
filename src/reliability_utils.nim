@@ -51,7 +51,7 @@ proc defaultConfig*(): ReliabilityConfig =
     resendInterval: DefaultResendInterval,
     maxResendAttempts: DefaultMaxResendAttempts,
     syncMessageInterval: DefaultSyncMessageInterval,
-    bufferSweepInterval: DefaultBufferSweepInterval
+    bufferSweepInterval: DefaultBufferSweepInterval,
   )
 
 proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
@@ -76,7 +76,9 @@ proc addToHistory*(rm: ReliabilityManager, msgId: MessageID) {.gcsafe, raises: [
   if rm.messageHistory.len > rm.config.maxMessageHistory:
     rm.messageHistory.delete(0)
 
-proc updateLamportTimestamp*(rm: ReliabilityManager, msgTs: int64) {.gcsafe, raises: [].} =
+proc updateLamportTimestamp*(
+    rm: ReliabilityManager, msgTs: int64
+) {.gcsafe, raises: [].} =
   rm.lamportTimestamp = max(msgTs, rm.lamportTimestamp) + 1
 
 proc getRecentMessageIDs*(rm: ReliabilityManager, n: int): seq[MessageID] =

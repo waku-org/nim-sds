@@ -4,7 +4,10 @@
 
 import std/[options, atomics, os, net, locks]
 import chronicles, chronos, chronos/threadsync, taskpools/channels_spsc_single, results
-import ../ffi_types
+import
+  ../ffi_types,
+  ./inter_thread_communication/sds_thread_request,
+  ../../src/[reliability_utils]
 
 type SdsContext* = object
   thread: Thread[(ptr SdsContext)]
