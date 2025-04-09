@@ -108,7 +108,7 @@ proc initializeLibrary() {.exported.} =
 ### Exported procs
 
 proc NewReliabilityManager(
-    channelId: cstring, callback: SdsCallback, userData: pointer
+    channelId: cstring, callback: SdsCallBack, userData: pointer
 ): pointer {.dynlib, exportc, cdecl.} =
   initializeLibrary()
 
