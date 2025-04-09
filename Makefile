@@ -9,7 +9,7 @@ deps: | sds.nims
 STATIC ?= 0
 
 libsds: deps
-		rm -f build/libwaku*
+		rm -f build/libsds*
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
 		$(ENV_SCRIPT) nim libsdsStatic $(NIM_PARAMS) sds.nims
