@@ -28,7 +28,7 @@ typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* u
  * @param channelId A unique identifier for the communication channel.
  * @return An opaque handle (void*) representing the instance, or NULL on failure.
  */
-void* NewReliabilityManager(char* channelId, SdsCallBack callback, void* userData);
+void* NewReliabilityManager(const char* channelId, SdsCallBack callback, void* userData);
 
 
 #ifdef __cplusplus
