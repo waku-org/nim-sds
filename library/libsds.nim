@@ -8,7 +8,11 @@ when defined(linux):
 import std/[locks, typetraits, tables] # Added tables
 import chronos
 import results
-import ../src/[reliability, reliability_utils, message]
+import
+  ./sds_thread/sds_thread,
+  ./alloc,
+  ./ffi_types,
+  ../src/[reliability, reliability_utils, message]
 
 ################################################################################
 ### Wrapper around the reliability manager
