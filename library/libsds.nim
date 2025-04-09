@@ -13,6 +13,7 @@ import
   ./alloc,
   ./ffi_types,
   ./sds_thread/inter_thread_communication/sds_thread_request,
+  ./sds_thread/inter_thread_communication/requests/sds_lifecycle_request,
   ../src/[reliability, reliability_utils, message]
 
 ################################################################################
@@ -101,4 +102,43 @@ proc initializeLibrary() {.exported.} =
     nimGC_setStackBottom(locals)
 
 ### End of library setup
+################################################################################
+
+################################################################################
+### Exported procs
+
+proc NewReliabilityManager(
+    channelId: cstring, callback: SdsCallback, userData: pointer
+): pointer {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+
+  ## Creates a new instance of the WakuNode.
+  if isNil(callback):
+    echo "error: missing callback in NewReliabilityManager"
+    return nil
+
+  ## Create the SDS thread that will keep waiting for req from the main thread.
+  var ctx = sds_thread.createSdsThread().valueOr:
+    let msg = "Error in createSdsThread: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return nil
+
+  ctx.userData = userData
+
+  let retCode = handleRequest(
+    ctx,
+    RequestType.LIFECYCLE,
+    SdsLifecycleRequest.createShared(
+      SdsLifecycleMsgType.CREATE_RELIABILITY_MANAGER, channelId
+    ),
+    callback,
+    userData,
+  )
+
+  if retCode == RET_ERR:
+    return nil
+
+  return ctx
+
+### End of exported procs
 ################################################################################

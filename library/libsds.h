@@ -28,12 +28,7 @@ typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* u
  * @param channelId A unique identifier for the communication channel.
  * @return An opaque handle (void*) representing the instance, or NULL on failure.
  */
-void* sds_reliability_manager_new(char* channelId);
-
-/* void* waku_new(
-             const char* configJson,
-             WakuCallBack callback,
-             void* userData); */
+void* NewReliabilityManager(char* channelId);
 
 
 #ifdef __cplusplus
