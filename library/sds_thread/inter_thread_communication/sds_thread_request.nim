@@ -55,14 +55,13 @@ proc handleRes[T: string | void](
     )
   return
 
-# TODO: change waku for reliability manager or something like that
 proc process*(
-    T: type SdsThreadRequest, request: ptr SdsThreadRequest, waku: ptr Waku
+    T: type SdsThreadRequest, request: ptr SdsThreadRequest, rm: ptr ReliabilityManager
 ) {.async.} =
   let retFut =
     case request[].reqType
     of LIFECYCLE:
-      cast[ptr SdsLifecycleRequest](request[].reqContent).process(waku)
+      cast[ptr SdsLifecycleRequest](request[].reqContent).process(rm)
 
   handleRes(await retFut, request)
 

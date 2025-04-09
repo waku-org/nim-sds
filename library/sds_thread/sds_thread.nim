@@ -23,7 +23,7 @@ proc runSds(ctx: ptr SdsContext) {.async.} =
   ## This is the worker body. This runs the SDS instance
   ## and attends library user requests (stop, connect_to, etc.)
 
-  var waku: Waku # TODO
+  var rm: ReliabilityManager
 
   while true:
     await ctx.reqSignal.wait()
@@ -43,7 +43,7 @@ proc runSds(ctx: ptr SdsContext) {.async.} =
       error "could not fireSync back to requester thread", error = fireRes.error
 
     ## Handle the request
-    asyncSpawn SdsThreadRequest.process(request, addr waku) # TODO
+    asyncSpawn SdsThreadRequest.process(request, addr rm)
 
 proc run(ctx: ptr SdsContext) {.thread.} =
   ## Launch sds worker
