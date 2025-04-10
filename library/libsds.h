@@ -23,13 +23,10 @@ typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* u
 
 // --- Core API Functions ---
 
-/**
- * @brief Creates a new ReliabilityManager instance.
- * @param channelId A unique identifier for the communication channel.
- * @return An opaque handle (void*) representing the instance, or NULL on failure.
- */
+
 void* NewReliabilityManager(const char* channelId, SdsCallBack callback, void* userData);
 
+void SetEventCallback(void* ctx, SdsCallBack callback, void* userData);
 
 #ifdef __cplusplus
 }

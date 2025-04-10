@@ -140,5 +140,12 @@ proc NewReliabilityManager(
 
   return ctx
 
+proc SetEventCallback(
+    ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
+) {.dynlib, exportc.} =
+  initializeLibrary()
+  ctx[].eventCallback = cast[pointer](callback)
+  ctx[].eventUserData = userData
+
 ### End of exported procs
 ################################################################################
