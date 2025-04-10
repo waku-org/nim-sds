@@ -163,5 +163,17 @@ proc CleanupReliabilityManager(
 
   return RET_OK
 
+proc ResetReliabilityManager(
+    ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
+): cint {.dynlib, exportc.} =
+  checkLibsdsParams(ctx, callback, userData)
+  handleRequest(
+    ctx,
+    RequestType.LIFECYCLE,
+    SdsLifecycleRequest.createShared(SdsLifecycleMsgType.RESET_RELIABILITY_MANAGER),
+    callback,
+    userData,
+  )
+
 ### End of exported procs
 ################################################################################

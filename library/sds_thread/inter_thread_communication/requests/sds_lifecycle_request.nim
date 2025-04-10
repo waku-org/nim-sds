@@ -6,6 +6,7 @@ import ../../../../src/[reliability_utils, reliability, message]
 
 type SdsLifecycleMsgType* = enum
   CREATE_RELIABILITY_MANAGER
+  RESET_RELIABILITY_MANAGER
 
 type SdsLifecycleRequest* = object
   operation: SdsLifecycleMsgType
@@ -58,5 +59,8 @@ proc process*(
     rm[] = (await createReliabilityManager(self.channelId)).valueOr:
       error "CREATE_RELIABILITY_MANAGER failed", error = error
       return err("error processing CREATE_RELIABILITY_MANAGER request: " & $error)
+  of RESET_RELIABILITY_MANAGER:
+    resetReliabilityManager(rm[]).isOkOr:
+      return err("error processing RESET_RELIABILITY_MANAGER request: " & $error)
 
   return ok("")

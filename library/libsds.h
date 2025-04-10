@@ -30,6 +30,8 @@ void SetEventCallback(void* ctx, SdsCallBack callback, void* userData);
 
 int CleanupReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
 
+int ResetReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
+
 
 #ifdef __cplusplus
 }
