@@ -112,7 +112,7 @@ proc NewReliabilityManager(
 ): pointer {.dynlib, exportc, cdecl.} =
   initializeLibrary()
 
-  ## Creates a new instance of the WakuNode.
+  ## Creates a new instance of the Reliability Manager.
   if isNil(callback):
     echo "error: missing callback in NewReliabilityManager"
     return nil
@@ -146,6 +146,22 @@ proc SetEventCallback(
   initializeLibrary()
   ctx[].eventCallback = cast[pointer](callback)
   ctx[].eventUserData = userData
+
+proc CleanupReliabilityManager(
+    ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibsdsParams(ctx, callback, userData)
+
+  sds_thread.destroySdsThread(ctx).isOkOr:
+    let msg = "libsds error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  ## always need to invoke the callback although we don't retrieve value to the caller
+  callback(RET_OK, nil, 0, userData)
+
+  return RET_OK
 
 ### End of exported procs
 ################################################################################

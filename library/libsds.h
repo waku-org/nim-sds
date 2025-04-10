@@ -28,6 +28,9 @@ void* NewReliabilityManager(const char* channelId, SdsCallBack callback, void* u
 
 void SetEventCallback(void* ctx, SdsCallBack callback, void* userData);
 
+int CleanupReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
+
+
 #ifdef __cplusplus
 }
 #endif
