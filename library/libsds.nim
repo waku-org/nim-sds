@@ -13,7 +13,8 @@ import
   ./alloc,
   ./ffi_types,
   ./sds_thread/inter_thread_communication/sds_thread_request,
-  ./sds_thread/inter_thread_communication/requests/sds_lifecycle_request,
+  ./sds_thread/inter_thread_communication/requests/
+    [sds_lifecycle_request, sds_message_request],
   ../src/[reliability, reliability_utils, message]
 
 ################################################################################
@@ -171,6 +172,32 @@ proc ResetReliabilityManager(
     ctx,
     RequestType.LIFECYCLE,
     SdsLifecycleRequest.createShared(SdsLifecycleMsgType.RESET_RELIABILITY_MANAGER),
+    callback,
+    userData,
+  )
+
+proc WrapOutgoingMessage(
+    ctx: ptr SdsContext,
+    message: cstring,
+    messageId: cstring,
+    callback: SdsCallBack,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibsdsParams(ctx, callback, userData)
+
+  let
+    msg = message.alloc()
+    msgId = messageId.alloc()
+
+  defer:
+    deallocShared(msg)
+    deallocShared(msgId)
+
+  handleRequest(
+    ctx,
+    RequestType.MESSAGE,
+    SdsMessageRequest.createShared(SdsMessageMsgType.WRAP_MESSAGE, msg, msgId),
     callback,
     userData,
   )

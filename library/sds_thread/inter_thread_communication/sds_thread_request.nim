@@ -5,10 +5,13 @@
 import std/json, results
 import chronos, chronos/threadsync
 import
-  ../../ffi_types, ./requests/sds_lifecycle_request, ../../../src/[reliability_utils]
+  ../../ffi_types,
+  ./requests/[sds_lifecycle_request, sds_message_request],
+  ../../../src/[reliability_utils]
 
 type RequestType* {.pure.} = enum
   LIFECYCLE
+  MESSAGE
 
 type SdsThreadRequest* = object
   reqType: RequestType
@@ -63,6 +66,8 @@ proc process*(
     case request[].reqType
     of LIFECYCLE:
       cast[ptr SdsLifecycleRequest](request[].reqContent).process(rm)
+    of MESSAGE:
+      cast[ptr SdsMessageRequest](request[].reqContent).process(rm)
 
   handleRes(await retFut, request)
 

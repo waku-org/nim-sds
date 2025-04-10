@@ -32,6 +32,12 @@ int CleanupReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
 
 int ResetReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
 
+int WrapOutgoingMessage(void* ctx,
+                    const char* message,
+                    const char* messageId,
+                    SdsCallBack callback,
+                    void* userData);
+
 
 #ifdef __cplusplus
 }
