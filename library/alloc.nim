@@ -40,3 +40,14 @@ proc toSeq*[T](s: SharedSeq[T]): seq[T] =
   for i in 0 ..< s.len:
     ret.add(s.data[i])
   return ret
+
+proc allocSharedSeqFromCArray*[T](arr: ptr T, len: int): SharedSeq[T] =
+  ## Creates a SharedSeq[T] from a C array pointer and length.
+  ## The data is copied to shared memory.
+  ## There should be a corresponding manual deallocation with deallocSharedSeq!
+  if arr.isNil or len <= 0:
+    return (nil, 0)
+
+  let data = allocShared(sizeof(T) * len)
+  copyMem(data, arr, sizeof(T) * len)
+  return (cast[ptr UncheckedArray[T]](data), len)

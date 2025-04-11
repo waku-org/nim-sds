@@ -9,24 +9,27 @@ type SdsMessageMsgType* = enum
 
 type SdsMessageRequest* = object
   operation: SdsMessageMsgType
-  message: cstring
+  message: SharedSeq[byte]
+  messageLen: csize_t
   messageId: cstring
 
 proc createShared*(
     T: type SdsMessageRequest,
     op: SdsMessageMsgType,
-    message: cstring = "",
+    message: SharedSeq[byte],
+    messageLen: csize_t = 0,
     messageId: cstring = "",
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
-  ret[].message = message.alloc()
-  ret[].messageId = messageId.alloc()
+  ret[].message = message # check if alloc is needed
+  ret[].messageLen = messageLen
+  ret[].messageId = messageId # check if alloc is needed
   return ret
 
 proc destroyShared(self: ptr SdsMessageRequest) =
-  deallocShared(self[].message)
-  deallocShared(self[].messageId)
+  #deallocShared(self[].message)
+  #deallocShared(self[].messageId)
   deallocShared(self)
 
 proc process*(
@@ -37,6 +40,8 @@ proc process*(
 
   case self.operation
   of WRAP_MESSAGE:
+    let byteSeq = self.message.toSeq()
+    echo "------------ byteSeq: ", byteSeq
     echo "------- received wrap message request"
 
   return ok("")

@@ -178,7 +178,8 @@ proc ResetReliabilityManager(
 
 proc WrapOutgoingMessage(
     ctx: ptr SdsContext,
-    message: cstring,
+    message: pointer,
+    messageLen: csize_t,
     messageId: cstring,
     callback: SdsCallBack,
     userData: pointer,
@@ -186,18 +187,29 @@ proc WrapOutgoingMessage(
   initializeLibrary()
   checkLibsdsParams(ctx, callback, userData)
 
-  let
-    msg = message.alloc()
-    msgId = messageId.alloc()
+  if message == nil and messageLen > 0:
+    let msg = "libsds error: " & "message pointer is NULL but length > 0"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  if messageId == nil:
+    let msg = "libsds error: " & "message ID pointer is NULL"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  var msg = allocSharedSeqFromCArray(cast[ptr byte](message), messageLen.int)
+  let msgId = messageId.alloc()
 
   defer:
-    deallocShared(msg)
+    deallocSharedSeq(msg)
     deallocShared(msgId)
 
   handleRequest(
     ctx,
     RequestType.MESSAGE,
-    SdsMessageRequest.createShared(SdsMessageMsgType.WRAP_MESSAGE, msg, msgId),
+    SdsMessageRequest.createShared(
+      SdsMessageMsgType.WRAP_MESSAGE, msg, messageLen, msgId
+    ),
     callback,
     userData,
   )
