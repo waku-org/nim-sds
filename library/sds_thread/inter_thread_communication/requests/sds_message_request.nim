@@ -1,4 +1,4 @@
-import std/[options, json, strutils, net]
+import std/[options, json, strutils, net, sequtils]
 import chronos, chronicles, results, confutils, confutils/std/net
 
 import ../../../alloc
@@ -40,8 +40,13 @@ proc process*(
 
   case self.operation
   of WRAP_MESSAGE:
-    let byteSeq = self.message.toSeq()
-    echo "------------ byteSeq: ", byteSeq
-    echo "------- received wrap message request"
+    let messageBytes = self.message.toSeq()
+
+    let wrappedMessage = wrapOutgoingMessage(rm[], messageBytes, $self.messageId).valueOr:
+      error "WRAP_MESSAGE failed", error = error
+      return err("error processing WRAP_MESSAGE request: " & $error)
+
+    # returns a comma-separates string of bytes
+    return ok(wrappedMessage.mapIt($it).join(","))
 
   return ok("")
