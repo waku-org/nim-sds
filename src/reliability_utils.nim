@@ -24,9 +24,10 @@ type
     channelId*: string
     config*: ReliabilityConfig
     lock*: Lock
-    onMessageReady*: proc(messageId: MessageID)
-    onMessageSent*: proc(messageId: MessageID)
-    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID])
+    onMessageReady*: proc(messageId: MessageID) {.gcsafe.}
+    onMessageSent*: proc(messageId: MessageID) {.gcsafe.}
+    onMissingDependencies*:
+      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
     onPeriodicSync*: proc()
 
   ReliabilityError* = enum

@@ -214,5 +214,33 @@ proc WrapOutgoingMessage(
     userData,
   )
 
+proc UnwrapReceivedMessage(
+    ctx: ptr SdsContext,
+    message: pointer,
+    messageLen: csize_t,
+    callback: SdsCallBack,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibsdsParams(ctx, callback, userData)
+
+  if message == nil and messageLen > 0:
+    let msg = "libsds error: " & "message pointer is NULL but length > 0"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  var msg = allocSharedSeqFromCArray(cast[ptr byte](message), messageLen.int)
+
+  defer:
+    deallocSharedSeq(msg)
+
+  handleRequest(
+    ctx,
+    RequestType.MESSAGE,
+    SdsMessageRequest.createShared(SdsMessageMsgType.UNWRAP_MESSAGE, msg, messageLen),
+    callback,
+    userData,
+  )
+
 ### End of exported procs
 ################################################################################

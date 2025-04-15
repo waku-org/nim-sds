@@ -39,6 +39,12 @@ int WrapOutgoingMessage(void* ctx,
                     SdsCallBack callback,
                     void* userData);
 
+int UnwrapReceivedMessage(void* ctx, 
+                    void* message, 
+                    size_t messageLen, 
+                    SdsCallBack callback, 
+                    void* userData);
+
 
 #ifdef __cplusplus
 }
