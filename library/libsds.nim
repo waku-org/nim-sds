@@ -14,7 +14,7 @@ import
   ./ffi_types,
   ./sds_thread/inter_thread_communication/sds_thread_request,
   ./sds_thread/inter_thread_communication/requests/
-    [sds_lifecycle_request, sds_message_request],
+    [sds_lifecycle_request, sds_message_request, sds_dependencies_request],
   ../src/[reliability, reliability_utils, message]
 
 ################################################################################
@@ -238,6 +238,36 @@ proc UnwrapReceivedMessage(
     ctx,
     RequestType.MESSAGE,
     SdsMessageRequest.createShared(SdsMessageMsgType.UNWRAP_MESSAGE, msg, messageLen),
+    callback,
+    userData,
+  )
+
+proc MarkDependenciesMet(
+    ctx: ptr SdsContext,
+    messageIds: pointer,
+    count: csize_t,
+    callback: SdsCallBack,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibsdsParams(ctx, callback, userData)
+
+  if messageIds == nil and count > 0:
+    let msg = "libsds error: " & "MessageIDs pointer is NULL but count > 0"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  var messageIds = allocSharedSeqFromCArray(cast[ptr cstring](messageIds), count.int)
+
+  defer:
+    deallocSharedSeq(messageIds)
+
+  handleRequest(
+    ctx,
+    RequestType.DEPENDENCIES,
+    SdsDependenciesRequest.createShared(
+      SdsDependenciesMsgType.MARK_DEPENDENCIES_MET, messageIds, count
+    ),
     callback,
     userData,
   )

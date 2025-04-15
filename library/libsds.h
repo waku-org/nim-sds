@@ -45,6 +45,13 @@ int UnwrapReceivedMessage(void* ctx,
                     SdsCallBack callback, 
                     void* userData);
 
+int MarkDependenciesMet(void* ctx, 
+                    char** messageIDs, 
+                    size_t count, 
+                    SdsCallBack callback,
+                    void* userData);
+
+
 
 #ifdef __cplusplus
 }

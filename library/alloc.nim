@@ -30,6 +30,14 @@ proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
   return (cast[ptr UncheckedArray[T]](data), s.len)
 
 proc deallocSharedSeq*[T](s: var SharedSeq[T]) =
+  if not s.data.isNil:
+    when T is cstring:
+      # For array of cstrings, deallocate each string first
+      for i in 0 ..< s.len:
+        if not s.data[i].isNil:
+          # Deallocate each cstring
+          deallocShared(s.data[i])
+
   deallocShared(s.data)
   s.len = 0
 
@@ -48,6 +56,18 @@ proc allocSharedSeqFromCArray*[T](arr: ptr T, len: int): SharedSeq[T] =
   if arr.isNil or len <= 0:
     return (nil, 0)
 
-  let data = allocShared(sizeof(T) * len)
-  copyMem(data, arr, sizeof(T) * len)
-  return (cast[ptr UncheckedArray[T]](data), len)
+  when T is cstring:
+    # Special handling for arrays of cstrings
+    let data = cast[ptr UncheckedArray[cstring]](allocShared(sizeof(cstring) * len))
+    let cstrArr = cast[ptr UncheckedArray[cstring]](arr)
+
+    for i in 0 ..< len:
+      # Use the existing alloc proc to properly allocate each cstring
+      data[i] = cstrArr[i].alloc()
+
+    return (data, len)
+  else:
+    # Original handling for non-cstring types
+    let data = allocShared(sizeof(T) * len)
+    copyMem(data, arr, sizeof(T) * len)
+    return (cast[ptr UncheckedArray[T]](data), len)
