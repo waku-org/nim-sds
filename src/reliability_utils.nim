@@ -2,7 +2,20 @@ import std/[times, locks]
 import ./[rolling_bloom_filter, message]
 
 type
+  MessageReadyCallback* = proc(messageId: MessageID) {.gcsafe.}
+
+  MessageSentCallback* = proc(messageId: MessageID) {.gcsafe.}
+
+  MissingDependenciesCallback* =
+    proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
+
   PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
+
+  AppCallbacks* = ref object
+    messageReadyCb*: MessageReadyCallback
+    messageSentCb*: MessageSentCallback
+    missingDependenciesCb*: MissingDependenciesCallback
+    periodicSyncCb*: PeriodicSyncCallback
 
   ReliabilityConfig* = object
     bloomFilterCapacity*: int

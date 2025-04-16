@@ -5,9 +5,7 @@
 when defined(linux):
   {.passl: "-Wl,-soname,libsds.so".}
 
-import std/[locks, typetraits, tables, atomics] # Added tables
-import chronos
-import results
+import std/[locks, typetraits, tables, atomics], chronos, chronicles
 import
   ./sds_thread/sds_thread,
   ./alloc,
@@ -15,7 +13,8 @@ import
   ./sds_thread/inter_thread_communication/sds_thread_request,
   ./sds_thread/inter_thread_communication/requests/
     [sds_lifecycle_request, sds_message_request, sds_dependencies_request],
-  ../src/[reliability, reliability_utils, message]
+  ../src/[reliability, reliability_utils, message],
+  ./events/[json_message_ready_event, json_message_sent_event]
 
 ################################################################################
 ### Wrapper around the reliability manager
@@ -68,6 +67,16 @@ proc handleRequest(
     return RET_ERR
 
   return RET_OK
+
+proc onMessageReady(ctx: ptr SdsContext): MessageReadyCallback =
+  return proc(messageId: MessageID) {.gcsafe.} =
+    callEventCallback(ctx, "onMessageReady"):
+      $JsonMessageReadyEvent.new(messageId)
+
+proc onMessageSent(ctx: ptr SdsContext): MessageSentCallback =
+  return proc(messageId: MessageID) {.gcsafe.} =
+    callEventCallback(ctx, "onMessageSent"):
+      $JsonMessageSentEvent.new(messageId)
 
 ### End of not-exported components
 ################################################################################

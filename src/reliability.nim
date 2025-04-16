@@ -251,10 +251,9 @@ proc markDependenciesMet*(
 
 proc setCallbacks*(
     rm: ReliabilityManager,
-    onMessageReady: proc(messageId: MessageID) {.gcsafe.},
-    onMessageSent: proc(messageId: MessageID) {.gcsafe.},
-    onMissingDependencies:
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.},
+    onMessageReady: MessageReadyCallback,
+    onMessageSent: MessageSentCallback,
+    onMissingDependencies: MissingDependenciesCallback,
     onPeriodicSync: PeriodicSyncCallback = nil,
 ) =
   ## Sets the callback functions for various events in the ReliabilityManager.
