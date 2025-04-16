@@ -148,11 +148,18 @@ proc NewReliabilityManager(
 
   ctx.userData = userData
 
+  let appCallbacks = AppCallbacks(
+    messageReadyCb: onMessageReady(ctx),
+    messageSentCb: onMessageSent(ctx),
+    missingDependenciesCb: onMissingDependencies(ctx),
+    periodicSyncCb: onPeriodicSync(ctx),
+  )
+
   let retCode = handleRequest(
     ctx,
     RequestType.LIFECYCLE,
     SdsLifecycleRequest.createShared(
-      SdsLifecycleMsgType.CREATE_RELIABILITY_MANAGER, channelId
+      SdsLifecycleMsgType.CREATE_RELIABILITY_MANAGER, channelId, appCallbacks
     ),
     callback,
     userData,

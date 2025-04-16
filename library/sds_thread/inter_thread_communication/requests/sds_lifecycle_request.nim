@@ -11,12 +11,17 @@ type SdsLifecycleMsgType* = enum
 type SdsLifecycleRequest* = object
   operation: SdsLifecycleMsgType
   channelId: cstring
+  appCallbacks: AppCallbacks
 
 proc createShared*(
-    T: type SdsLifecycleRequest, op: SdsLifecycleMsgType, channelId: cstring = ""
+    T: type SdsLifecycleRequest,
+    op: SdsLifecycleMsgType,
+    channelId: cstring = "",
+    appCallbacks: AppCallbacks = nil,
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
+  ret[].appCallbacks = appCallbacks
   ret[].channelId = channelId.alloc()
   return ret
 
@@ -25,7 +30,7 @@ proc destroyShared(self: ptr SdsLifecycleRequest) =
   deallocShared(self)
 
 proc createReliabilityManager(
-    channelIdCStr: cstring
+    channelIdCStr: cstring, appCallbacks: AppCallbacks = nil
 ): Future[Result[ReliabilityManager, string]] {.async.} =
   let channelId = $channelIdCStr
   if channelId.len == 0:
@@ -36,15 +41,10 @@ proc createReliabilityManager(
     error "Failed creating reliability manager", error = error
     return err("Failed creating reliability manager: " & $error)
 
-  # TODO: instead of this, create events
-  #[ rm.onMessageReady = proc(msgId: MessageID) =
-    nimMessageReadyCallback(rm, msgId)
-  rm.onMessageSent = proc(msgId: MessageID) =
-    nimMessageSentCallback(rm, msgId)
-  rm.onMissingDependencies = proc(msgId: MessageID, deps: seq[MessageID]) =
-    nimMissingDependenciesCallback(rm, msgId, deps)
-  rm.onPeriodicSync = proc() =
-    nimPeriodicSyncCallback(rm) ]#
+  rm.setCallbacks(
+    appCallbacks.messageReadyCb, appCallbacks.messageSentCb,
+    appCallbacks.missingDependenciesCb, appCallbacks.periodicSyncCb,
+  )
 
   return ok(rm)
 
@@ -56,7 +56,7 @@ proc process*(
 
   case self.operation
   of CREATE_RELIABILITY_MANAGER:
-    rm[] = (await createReliabilityManager(self.channelId)).valueOr:
+    rm[] = (await createReliabilityManager(self.channelId, self.appCallbacks)).valueOr:
       error "CREATE_RELIABILITY_MANAGER failed", error = error
       return err("error processing CREATE_RELIABILITY_MANAGER request: " & $error)
   of RESET_RELIABILITY_MANAGER:
