@@ -10,9 +10,6 @@ proc new*(
     messageId: MessageID,
     missingDeps: seq[MessageID],
 ): T =
-  # Returns a MissingDependencies event as indicated in
-  # https://rfc.vac.dev/spec/36/#jsonmessageevent-type
-
   return JsonMissingDependenciesEvent(
     eventType: "missing_dependencies", messageId: messageId, missingDeps: missingDeps
   )
