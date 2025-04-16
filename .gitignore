@@ -7,3 +7,10 @@ for_reference
 do_not_commit
 build/*
 sds.nims
+/.update.timestamp
+
+# Nimbus Build System
+nimbus-build-system.paths
+
+# Nimble packages
+/vendor/.nimble
