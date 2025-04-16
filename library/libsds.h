@@ -51,6 +51,8 @@ int MarkDependenciesMet(void* ctx,
                     SdsCallBack callback,
                     void* userData);
 
+int StartPeriodicTasks(void* ctx, SdsCallBack callback, void* userData);
+
 
 
 #ifdef __cplusplus

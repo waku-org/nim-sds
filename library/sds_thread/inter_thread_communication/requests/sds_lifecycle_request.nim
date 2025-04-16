@@ -7,6 +7,7 @@ import ../../../../src/[reliability_utils, reliability, message]
 type SdsLifecycleMsgType* = enum
   CREATE_RELIABILITY_MANAGER
   RESET_RELIABILITY_MANAGER
+  START_PERIODIC_TASKS
 
 type SdsLifecycleRequest* = object
   operation: SdsLifecycleMsgType
@@ -62,5 +63,7 @@ proc process*(
   of RESET_RELIABILITY_MANAGER:
     resetReliabilityManager(rm[]).isOkOr:
       return err("error processing RESET_RELIABILITY_MANAGER request: " & $error)
+  of START_PERIODIC_TASKS:
+    rm[].startPeriodicTasks()
 
   return ok("")

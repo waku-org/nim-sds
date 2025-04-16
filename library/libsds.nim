@@ -301,5 +301,17 @@ proc MarkDependenciesMet(
     userData,
   )
 
+proc StartPeriodicTasks(
+    ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
+): cint {.dynlib, exportc.} =
+  checkLibsdsParams(ctx, callback, userData)
+  handleRequest(
+    ctx,
+    RequestType.LIFECYCLE,
+    SdsLifecycleRequest.createShared(SdsLifecycleMsgType.START_PERIODIC_TASKS),
+    callback,
+    userData,
+  )
+
 ### End of exported procs
 ################################################################################
