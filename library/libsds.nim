@@ -14,7 +14,10 @@ import
   ./sds_thread/inter_thread_communication/requests/
     [sds_lifecycle_request, sds_message_request, sds_dependencies_request],
   ../src/[reliability, reliability_utils, message],
-  ./events/[json_message_ready_event, json_message_sent_event]
+  ./events/[
+    json_message_ready_event, json_message_sent_event, json_missing_dependencies_event,
+    json_periodic_sync_event,
+  ]
 
 ################################################################################
 ### Wrapper around the reliability manager
@@ -77,6 +80,16 @@ proc onMessageSent(ctx: ptr SdsContext): MessageSentCallback =
   return proc(messageId: MessageID) {.gcsafe.} =
     callEventCallback(ctx, "onMessageSent"):
       $JsonMessageSentEvent.new(messageId)
+
+proc onMissingDependencies(ctx: ptr SdsContext): MissingDependenciesCallback =
+  return proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} =
+    callEventCallback(ctx, "onMissingDependencies"):
+      $JsonMissingDependenciesEvent.new(messageId, missingDeps)
+
+proc onPeriodicSync(ctx: ptr SdsContext): PeriodicSyncCallback =
+  return proc() {.gcsafe.} =
+    callEventCallback(ctx, "onPeriodicSync"):
+      $JsonPeriodicSyncEvent.new()
 
 ### End of not-exported components
 ################################################################################
