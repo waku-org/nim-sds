@@ -226,18 +226,11 @@ proc WrapOutgoingMessage(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  var msg = allocSharedSeqFromCArray(cast[ptr byte](message), messageLen.int)
-  let msgId = messageId.alloc()
-
-  defer:
-    deallocSharedSeq(msg)
-    deallocShared(msgId)
-
   handleRequest(
     ctx,
     RequestType.MESSAGE,
     SdsMessageRequest.createShared(
-      SdsMessageMsgType.WRAP_MESSAGE, msg, messageLen, msgId
+      SdsMessageMsgType.WRAP_MESSAGE, message, messageLen, messageId
     ),
     callback,
     userData,
@@ -258,15 +251,12 @@ proc UnwrapReceivedMessage(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  var msg = allocSharedSeqFromCArray(cast[ptr byte](message), messageLen.int)
-
-  defer:
-    deallocSharedSeq(msg)
-
   handleRequest(
     ctx,
     RequestType.MESSAGE,
-    SdsMessageRequest.createShared(SdsMessageMsgType.UNWRAP_MESSAGE, msg, messageLen),
+    SdsMessageRequest.createShared(
+      SdsMessageMsgType.UNWRAP_MESSAGE, message, messageLen
+    ),
     callback,
     userData,
   )
@@ -285,11 +275,6 @@ proc MarkDependenciesMet(
     let msg = "libsds error: " & "MessageIDs pointer is NULL but count > 0"
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
-
-  var messageIds = allocSharedSeqFromCArray(cast[ptr cstring](messageIds), count.int)
-
-  defer:
-    deallocSharedSeq(messageIds)
 
   handleRequest(
     ctx,

@@ -21,20 +21,21 @@ type SdsUnwrapResponse* = object
 proc createShared*(
     T: type SdsMessageRequest,
     op: SdsMessageMsgType,
-    message: SharedSeq[byte],
+    message: pointer,
     messageLen: csize_t = 0,
     messageId: cstring = "",
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
-  ret[].message = message # check if alloc is needed
   ret[].messageLen = messageLen
-  ret[].messageId = messageId # check if alloc is needed
+  ret[].messageId = messageId.alloc()
+  ret[].message = allocSharedSeqFromCArray(cast[ptr byte](message), messageLen.int)
+
   return ret
 
 proc destroyShared(self: ptr SdsMessageRequest) =
-  #deallocShared(self[].message)
-  #deallocShared(self[].messageId)
+  deallocSharedSeq(self[].message)
+  deallocShared(self[].messageId)
   deallocShared(self)
 
 proc process*(

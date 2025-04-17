@@ -15,18 +15,17 @@ type SdsDependenciesRequest* = object
 proc createShared*(
     T: type SdsDependenciesRequest,
     op: SdsDependenciesMsgType,
-    messageIds: SharedSeq[cstring],
+    messageIds: pointer,
     count: csize_t = 0,
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
-  ret[].messageIds = messageIds # check if alloc is needed
   ret[].count = count
+  ret[].messageIds = allocSharedSeqFromCArray(cast[ptr cstring](messageIds), count.int)
   return ret
 
 proc destroyShared(self: ptr SdsDependenciesRequest) =
-  #deallocShared(self[].message)
-  #deallocShared(self[].messageId)
+  deallocSharedSeq(self[].messageIds)
   deallocShared(self)
 
 proc process*(
