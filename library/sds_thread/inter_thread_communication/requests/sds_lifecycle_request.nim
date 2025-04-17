@@ -62,6 +62,7 @@ proc process*(
       return err("error processing CREATE_RELIABILITY_MANAGER request: " & $error)
   of RESET_RELIABILITY_MANAGER:
     resetReliabilityManager(rm[]).isOkOr:
+      error "RESET_RELIABILITY_MANAGER failed", error = error
       return err("error processing RESET_RELIABILITY_MANAGER request: " & $error)
   of START_PERIODIC_TASKS:
     rm[].startPeriodicTasks()
