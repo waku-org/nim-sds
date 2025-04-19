@@ -1,4 +1,5 @@
 package main
+
 import (
 	"sync"
 	"testing"
@@ -158,7 +159,7 @@ func TestCallback_OnMessageReady(t *testing.T) {
 	}
 	defer CleanupReliabilityManager(handleReceiver)
 
-	// Use a channel for signaling instead of WaitGroup
+	// Use a channel for signaling
 	readyChan := make(chan MessageID, 1)
 
 	callbacks := Callbacks{
@@ -223,7 +224,6 @@ func TestCallback_OnMessageSent(t *testing.T) {
 		t.Fatalf("NewReliabilityManager (2) failed: %v", err)
 	}
 	defer CleanupReliabilityManager(handle2)
-
 
 	var wg sync.WaitGroup
 	sentCalled := false
@@ -310,7 +310,6 @@ func TestCallback_OnMissingDependencies(t *testing.T) {
 	}
 	defer CleanupReliabilityManager(handleReceiver)
 
-
 	var wg sync.WaitGroup
 	missingCalled := false
 	var missingMsgID MessageID
@@ -394,7 +393,7 @@ func TestCallback_OnPeriodicSync(t *testing.T) {
 
 	syncCalled := false
 	var cbMutex sync.Mutex
-	// Use a channel to signal when the callback is hit, as WaitGroup isn't ideal for periodic calls
+	// Use a channel to signal when the callback is hit
 	syncChan := make(chan bool, 1)
 
 	callbacks := Callbacks{

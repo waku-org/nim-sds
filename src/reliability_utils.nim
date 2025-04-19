@@ -3,10 +3,8 @@ import ./[rolling_bloom_filter, message]
 
 type
   # Forward declare C types needed within ReliabilityManager definition
-  # Ideally, these would be imported from a shared header/module if possible,
-  # but defining them here avoids circular dependencies for now.
+  # Ideally, these would be imported from a shared header/module.
   CEventType* {.importc: "CEventType", header: "../bindings/bindings.h", pure.} = enum
-    # Use relative path
     EVENT_MESSAGE_READY = 1
     EVENT_MESSAGE_SENT = 2
     EVENT_MISSING_DEPENDENCIES = 3

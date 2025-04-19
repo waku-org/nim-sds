@@ -243,35 +243,35 @@ func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 un
 	}
 
 	switch eventType {
-		case C.EVENT_MESSAGE_READY:
-			if callbacks.OnMessageReady != nil {
-				msgIdStr := C.GoString((*C.char)(data1))
-				callbacks.OnMessageReady(MessageID(msgIdStr))
-			}
-		case C.EVENT_MESSAGE_SENT:
-			if callbacks.OnMessageSent != nil {
-				msgIdStr := C.GoString((*C.char)(data1))
-				callbacks.OnMessageSent(MessageID(msgIdStr))
-			}
-		case C.EVENT_MISSING_DEPENDENCIES:
-			if callbacks.OnMissingDependencies != nil {
-				msgIdStr := C.GoString((*C.char)(data1))
-				depsCount := int(data3)
-				deps := make([]MessageID, depsCount)
-				if depsCount > 0 {
-					// Convert C array of C strings (**char) to Go slice
-					cDepsArray := (*[1 << 30]*C.char)(data2)[:depsCount:depsCount]
-					for i, s := range cDepsArray {
-						deps[i] = MessageID(C.GoString(s))
-					}
+	case C.EVENT_MESSAGE_READY:
+		if callbacks.OnMessageReady != nil {
+			msgIdStr := C.GoString((*C.char)(data1))
+			callbacks.OnMessageReady(MessageID(msgIdStr))
+		}
+	case C.EVENT_MESSAGE_SENT:
+		if callbacks.OnMessageSent != nil {
+			msgIdStr := C.GoString((*C.char)(data1))
+			callbacks.OnMessageSent(MessageID(msgIdStr))
+		}
+	case C.EVENT_MISSING_DEPENDENCIES:
+		if callbacks.OnMissingDependencies != nil {
+			msgIdStr := C.GoString((*C.char)(data1))
+			depsCount := int(data3)
+			deps := make([]MessageID, depsCount)
+			if depsCount > 0 {
+				// Convert C array of C strings (**char) to Go slice
+				cDepsArray := (*[1 << 30]*C.char)(data2)[:depsCount:depsCount]
+				for i, s := range cDepsArray {
+					deps[i] = MessageID(C.GoString(s))
 				}
-				callbacks.OnMissingDependencies(MessageID(msgIdStr), deps)
 			}
-		case C.EVENT_PERIODIC_SYNC:
-			if callbacks.OnPeriodicSync != nil {
-				callbacks.OnPeriodicSync()
-			}
-		default:
-			fmt.Printf("Go: globalCallbackRelay: Received unknown event type %d for handle %v\n", eventType, goHandle)
+			callbacks.OnMissingDependencies(MessageID(msgIdStr), deps)
+		}
+	case C.EVENT_PERIODIC_SYNC:
+		if callbacks.OnPeriodicSync != nil {
+			callbacks.OnPeriodicSync()
+		}
+	default:
+		fmt.Printf("Go: globalCallbackRelay: Received unknown event type %d for handle %v\n", eventType, goHandle)
 	}
 }

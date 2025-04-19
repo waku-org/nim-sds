@@ -61,7 +61,7 @@ proc reviewAckStatus(rm: ReliabilityManager, msg: Message) =
 
     if acknowledged:
       if rm.onMessageSent != nil:
-        rm.onMessageSent(rm, outMsg.message.messageId) # Pass rm
+        rm.onMessageSent(rm, outMsg.message.messageId)
       rm.outgoingBuffer.delete(i)
     else:
       inc i
@@ -212,8 +212,7 @@ proc unwrapReceivedMessage*(
       else:
         # All dependencies met, add to history
         rm.addToHistory(msg.messageId)
-        rm.processIncomingBuffer() # This might trigger onMessageReady internally
-        # If processIncomingBuffer didn't handle it (e.g., buffer was empty), handle it now.
+        rm.processIncomingBuffer()
         if rm.onMessageReady != nil:
           rm.onMessageReady(rm, msg.messageId)
     else:
@@ -288,7 +287,6 @@ proc checkUnacknowledgedMessages*(rm: ReliabilityManager) {.raises: [].} =
             newOutgoingBuffer.add(updatedMsg)
           else:
             if rm.onMessageSent != nil:
-              # Assuming message timeout means it's considered "sent" or "failed"
               rm.onMessageSent(rm, unackMsg.message.messageId)
         else:
           newOutgoingBuffer.add(unackMsg)
@@ -315,7 +313,7 @@ proc periodicSyncMessage(rm: ReliabilityManager) {.async: (raises: [CancelledErr
     {.gcsafe.}:
       try:
         if rm.onPeriodicSync != nil:
-          rm.onPeriodicSync(rm) # Pass rm
+          rm.onPeriodicSync(rm)
       except Exception as e:
         logError("Error in periodic sync: " & e.msg)
     await sleepAsync(chronos.seconds(rm.config.syncMessageInterval.inSeconds))
