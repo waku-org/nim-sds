@@ -60,15 +60,8 @@ proc reviewAckStatus(rm: ReliabilityManager, msg: Message) =
         logError("Failed to deserialize bloom filter")
 
     if acknowledged:
-      echo "[Nim Core] reviewAckStatus: Message acknowledged: ",
-        outMsg.message.messageId
       if rm.onMessageSent != nil:
-        echo "[Nim Core] reviewAckStatus: Calling onMessageSent for: ",
-          outMsg.message.messageId
         rm.onMessageSent(rm, outMsg.message.messageId) # Pass rm
-      else:
-        echo "[Nim Core] reviewAckStatus: rm.onMessageSent is nil, cannot call callback for: ",
-          outMsg.message.messageId
       rm.outgoingBuffer.delete(i)
     else:
       inc i
@@ -158,14 +151,8 @@ proc processIncomingBuffer(rm: ReliabilityManager) =
       for msg in rm.incomingBuffer:
         if msg.messageId == msgId:
           rm.addToHistory(msg.messageId)
-          echo "[Nim Core] processIncomingBuffer: Message ready: ", msg.messageId
           if rm.onMessageReady != nil:
-            echo "[Nim Core] processIncomingBuffer: Calling onMessageReady for: ",
-              msg.messageId
-            rm.onMessageReady(rm, msg.messageId) # Pass rm
-          else:
-            echo "[Nim Core] processIncomingBuffer: rm.onMessageReady is nil, cannot call callback for: ",
-              msg.messageId
+            rm.onMessageReady(rm, msg.messageId)
           processed.incl(msgId)
           # Add any dependent messages that might now be ready
           if msgId in dependencies:
@@ -197,11 +184,10 @@ proc unwrapReceivedMessage*(
 
     let msg = msgResult.get
     if rm.bloomFilter.contains(msg.messageId):
-      echo "[Nim Core] unwrapReceivedMessage: Duplicate message detected (in bloom filter): ",
-        msg.messageId # Add this log
+      # Duplicate message detected
       return ok((msg.content, @[]))
 
-    rm.bloomFilter.add(msg.messageId) # Add to receiver's bloom filter
+    rm.bloomFilter.add(msg.messageId)
 
     # Update Lamport timestamp
     rm.updateLamportTimestamp(msg.lamportTimestamp)
@@ -228,36 +214,13 @@ proc unwrapReceivedMessage*(
         rm.addToHistory(msg.messageId)
         rm.processIncomingBuffer() # This might trigger onMessageReady internally
         # If processIncomingBuffer didn't handle it (e.g., buffer was empty), handle it now.
-        # We know deps are met, so it should be ready.
-        # NOTE: Need to ensure addToHistory isn't called twice if processIncomingBuffer also adds it.
-        # Let's assume processIncomingBuffer handles adding to history if it processes the message.
-        # We only call the callback here if it wasn't handled by processIncomingBuffer.
-        # A more robust check would involve seeing if msgId was added to 'processed' set in processIncomingBuffer,
-        # but let's try simply calling the callback if the condition is met.
-        # We already added to history on line 222.
-        echo "[Nim Core] unwrapReceivedMessage: Message ready (direct): ", msg.messageId
-        # rm.addToHistory(msg.messageId) # Removed potential duplicate add
         if rm.onMessageReady != nil:
-          echo "[Nim Core] unwrapReceivedMessage: Calling onMessageReady for: ",
-            msg.messageId
-          rm.onMessageReady(rm, msg.messageId) # Pass rm
-        else:
-          echo "[Nim Core] unwrapReceivedMessage: rm.onMessageReady is nil, cannot call callback for: ",
-            msg.messageId
+          rm.onMessageReady(rm, msg.messageId)
     else:
       # Buffer message and request missing dependencies
-      echo "[Nim Core] unwrapReceivedMessage: Buffering message due to missing deps: ",
-        msg.messageId
       rm.incomingBuffer.add(msg)
-      echo "[Nim Core] unwrapReceivedMessage: Checking onMissingDependencies callback for: ",
-        msg.messageId
       if rm.onMissingDependencies != nil:
-        echo "[Nim Core] unwrapReceivedMessage: Calling onMissingDependencies for: ",
-          msg.messageId
-        rm.onMissingDependencies(rm, msg.messageId, missingDeps) # Pass rm
-      else:
-        echo "[Nim Core] unwrapReceivedMessage: rm.onMissingDependencies is nil, cannot call callback for: ",
-          msg.messageId
+        rm.onMissingDependencies(rm, msg.messageId, missingDeps)
 
     return ok((msg.content, missingDeps))
   except:
@@ -279,7 +242,6 @@ proc markDependenciesMet*(
       if not rm.bloomFilter.contains(msgId):
         rm.bloomFilter.add(msgId)
         # rm.addToHistory(msgId) -- not needed as this proc usually called when msg in long-term storage of application?
-    echo "[Nim Core] markDependenciesMet: Calling processIncomingBuffer after marking deps"
     rm.processIncomingBuffer()
 
     return ok()
@@ -289,14 +251,12 @@ proc markDependenciesMet*(
 proc setCallbacks*(
     rm: ReliabilityManager,
     onMessageReady: proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.},
-      # Add rm
     onMessageSent: proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.},
-      # Add rm
     onMissingDependencies: proc(
       rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
-    ) {.gcsafe.}, # Add rm
+    ) {.gcsafe.},
     onPeriodicSync: proc(rm: ReliabilityManager) {.gcsafe.} = nil,
-) = # Add rm, make type explicit
+) =
   ## Sets the callback functions for various events in the ReliabilityManager.
   ##
   ## Parameters:
@@ -329,14 +289,8 @@ proc checkUnacknowledgedMessages*(rm: ReliabilityManager) {.raises: [].} =
           else:
             if rm.onMessageSent != nil:
               # Assuming message timeout means it's considered "sent" or "failed"
-              echo "[Nim Core] checkUnacknowledgedMessages: Calling onMessageSent for timed out message: ",
-                unackMsg.message.messageId
-              rm.onMessageSent(rm, unackMsg.message.messageId) # Pass rm
-            else:
-              echo "[Nim Core] checkUnacknowledgedMessages: rm.onMessageSent is nil for timed out message: ",
-                unackMsg.message.messageId
+              rm.onMessageSent(rm, unackMsg.message.messageId)
         else:
-          # Dedent this else to match `if elapsed > rm.config.resendInterval:` (line 296)
           newOutgoingBuffer.add(unackMsg)
 
       rm.outgoingBuffer = newOutgoingBuffer
@@ -360,12 +314,8 @@ proc periodicSyncMessage(rm: ReliabilityManager) {.async: (raises: [CancelledErr
   while true:
     {.gcsafe.}:
       try:
-        echo "[Nim Core] periodicSyncMessage: Checking onPeriodicSync callback"
         if rm.onPeriodicSync != nil:
-          echo "[Nim Core] periodicSyncMessage: Calling onPeriodicSync"
           rm.onPeriodicSync(rm) # Pass rm
-        else:
-          echo "[Nim Core] periodicSyncMessage: rm.onPeriodicSync is nil"
       except Exception as e:
         logError("Error in periodic sync: " & e.msg)
     await sleepAsync(chronos.seconds(rm.config.syncMessageInterval.inSeconds))

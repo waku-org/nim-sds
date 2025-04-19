@@ -1,6 +1,5 @@
 package main
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -32,14 +31,12 @@ func TestHandleUniqueness(t *testing.T) {
 		t.Fatalf("NewReliabilityManager (1) failed: %v", err1)
 	}
 	defer CleanupReliabilityManager(handle1)
-	t.Logf("Handle 1: %p", handle1)
 
 	handle2, err2 := NewReliabilityManager(channelID)
 	if err2 != nil || handle2 == nil {
 		t.Fatalf("NewReliabilityManager (2) failed: %v", err2)
 	}
 	defer CleanupReliabilityManager(handle2)
-	t.Logf("Handle 2: %p", handle2)
 
 	if handle1 == handle2 {
 		t.Errorf("Expected unique handles, but both are %p", handle1)
@@ -166,14 +163,11 @@ func TestCallback_OnMessageReady(t *testing.T) {
 
 	callbacks := Callbacks{
 		OnMessageReady: func(messageId MessageID) {
-			fmt.Printf("Test_OnMessageReady: Received: %s\n", messageId)
 			// Non-blocking send to channel
 			select {
 			case readyChan <- messageId:
-				fmt.Printf("Test_OnMessageReady: Sent '%s' to readyChan\n", messageId) // Log after send
 			default:
 				// Avoid blocking if channel is full or test already timed out
-				fmt.Printf("Test_OnMessageReady: Warning - readyChan buffer full or test finished for %s\n", messageId)
 			}
 		},
 	}
@@ -189,14 +183,12 @@ func TestCallback_OnMessageReady(t *testing.T) {
 	msgID := MessageID("cb-ready-1")
 
 	// Wrap on sender
-	t.Logf("Test_OnMessageReady: Wrapping message with handleSender: %p", handleSender) // Log sender handle
 	wrappedMsg, err := WrapOutgoingMessage(handleSender, payload, msgID)
 	if err != nil {
 		t.Fatalf("WrapOutgoingMessage failed: %v", err)
 	}
 
 	// Unwrap on receiver
-	t.Logf("Test_OnMessageReady: Unwrapping message with handleReceiver: %p", handleReceiver) // Log receiver handle
 	_, _, err = UnwrapReceivedMessage(handleReceiver, wrappedMsg)
 	if err != nil {
 		t.Fatalf("UnwrapReceivedMessage failed: %v", err)
@@ -240,7 +232,6 @@ func TestCallback_OnMessageSent(t *testing.T) {
 
 	callbacks := Callbacks{
 		OnMessageSent: func(messageId MessageID) {
-			fmt.Printf("Test_OnMessageSent: Received: %s\n", messageId)
 			cbMutex.Lock()
 			sentCalled = true
 			sentMsgID = messageId
@@ -328,7 +319,6 @@ func TestCallback_OnMissingDependencies(t *testing.T) {
 
 	callbacks := Callbacks{
 		OnMissingDependencies: func(messageId MessageID, missingDeps []MessageID) {
-			fmt.Printf("Test_OnMissingDependencies: Received for %s: %v\n", messageId, missingDeps)
 			cbMutex.Lock()
 			missingCalled = true
 			missingMsgID = messageId
@@ -354,7 +344,6 @@ func TestCallback_OnMissingDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WrapOutgoingMessage (1) on sender failed: %v", err)
 	}
-	// _, _, err = UnwrapReceivedMessage(handleSender, wrappedMsg1) // No need to unwrap on sender
 
 	// 2. Sender sends msg2 (depends on msg1)
 	payload2 := []byte("missing test 2")
@@ -410,7 +399,6 @@ func TestCallback_OnPeriodicSync(t *testing.T) {
 
 	callbacks := Callbacks{
 		OnPeriodicSync: func() {
-			fmt.Println("Test_OnPeriodicSync: Received")
 			cbMutex.Lock()
 			if !syncCalled { // Only signal the first time
 				syncCalled = true
@@ -433,8 +421,6 @@ func TestCallback_OnPeriodicSync(t *testing.T) {
 
 	// --- Verification ---
 	// Wait for the periodic sync callback with a timeout (needs to be longer than sync interval)
-	// Default sync interval is 30s, which is too long for a unit test.
-	// We rely on the periodic tasks starting quickly and triggering the callback soon.
 	select {
 	case <-syncChan:
 		// Success

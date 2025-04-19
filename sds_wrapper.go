@@ -2,7 +2,7 @@ package main
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/bindings
-#cgo LDFLAGS: -L${SRCDIR}/bindings/generated -lbindings
+#cgo LDFLAGS: -L${SRCDIR}/bindings/generated -lsds
 #cgo LDFLAGS: -Wl,-rpath,${SRCDIR}/bindings/generated
 
 #include <stdlib.h> // For C.free
@@ -41,7 +41,7 @@ type Callbacks struct {
 	OnPeriodicSync        func()
 }
 
-// Global map to store callbacks associated with handles
+// Global map to store callbacks associated with handles (needed for Go relay)
 var (
 	callbackRegistry = make(map[ReliabilityManagerHandle]*Callbacks)
 	registryMutex    sync.RWMutex
@@ -56,7 +56,6 @@ func NewReliabilityManager(channelId string) (ReliabilityManagerHandle, error) {
 
 	handle := C.NewReliabilityManager(cChannelId)
 	if handle == nil {
-		// Note: Nim side currently just prints to stdout on creation failure
 		return nil, errors.New("failed to create ReliabilityManager (check Nim logs/stdout)")
 	}
 	return ReliabilityManagerHandle(handle), nil
@@ -64,14 +63,14 @@ func NewReliabilityManager(channelId string) (ReliabilityManagerHandle, error) {
 
 // CleanupReliabilityManager frees the resources associated with the handle
 func CleanupReliabilityManager(handle ReliabilityManagerHandle) {
-	fmt.Printf("Go: CleanupReliabilityManager called for handle %p\n", handle) // Log entry
 	if handle == nil {
-		fmt.Println("Go: CleanupReliabilityManager: handle is nil, returning.")
 		return
 	}
-	fmt.Printf("Go: CleanupReliabilityManager: Calling C.CleanupReliabilityManager for handle %p\n", handle)
+	// Remove from Go registry first
+	registryMutex.Lock()
+	delete(callbackRegistry, handle)
+	registryMutex.Unlock()
 	C.CleanupReliabilityManager(unsafe.Pointer(handle))
-	fmt.Printf("Go: CleanupReliabilityManager: C.CleanupReliabilityManager returned for handle %p\n", handle) // Log exit
 }
 
 // ResetReliabilityManager resets the state of the manager
@@ -240,7 +239,6 @@ func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 un
 	registryMutex.RUnlock()
 
 	if !ok || callbacks == nil {
-		fmt.Printf("Go: globalCallbackRelay: No callbacks registered for handle %v\n", goHandle)
 		return
 	}
 

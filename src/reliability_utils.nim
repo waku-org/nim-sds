@@ -19,7 +19,6 @@ type
     data2: pointer,
     data3: csize_t,
   ) {.cdecl, gcsafe.}
-
   PeriodicSyncCallback* = proc() {.gcsafe, raises: [].} # This is the Nim internal type
 
   ReliabilityConfig* = object
@@ -42,15 +41,13 @@ type
     channelId*: string
     config*: ReliabilityConfig
     lock*: Lock
-    # Nim internal callbacks (assigned in bindings/bindings.nim)
+    # Nim internal callbacks (assigned in bindings)
     onMessageReady*: proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.}
-      # Pass rm
     onMessageSent*: proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.}
-      # Pass rm
     onMissingDependencies*: proc(
       rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
-    ) {.gcsafe.} # Pass rm
-    onPeriodicSync*: proc(rm: ReliabilityManager) {.gcsafe.} # Pass rm
+    ) {.gcsafe.}
+    onPeriodicSync*: proc(rm: ReliabilityManager) {.gcsafe.}
 
     # C callback info (set via RegisterCallback)
     cCallback*: CEventCallback

@@ -17,8 +17,8 @@ task test, "Run the test suite":
 
 task bindings, "Generate bindings":
   proc compile(libName: string, flags = "") =
-    exec "nim c -f " & flags & " -d:release --app:lib --mm:arc --tlsEmulation:off --out:" &
-      libName & " --outdir:bindings/generated bindings/bindings.nim"
+    exec "nim c -f " & flags & " -d:release --app:lib --mm:refc --out:" & libName &
+      " --outdir:bindings/generated bindings/bindings.nim"
 
   # Create required directories
   mkDir "bindings/generated"
