@@ -25,7 +25,7 @@ suite "Core Operations":
   test "basic message wrapping and unwrapping":
     let msg = @[byte(1), 2, 3]
     let msgId = "test-msg-1"
-    
+
     let wrappedResult = rm.wrapOutgoingMessage(msg, msgId)
     check wrappedResult.isOk()
     let wrapped = wrappedResult.get()
@@ -46,7 +46,7 @@ suite "Core Operations":
       causalHistory: @[],
       channelId: "testChannel",
       content: @[byte(1)],
-      bloomFilter: @[]
+      bloomFilter: @[],
     )
 
     let msg2 = Message(
@@ -55,7 +55,7 @@ suite "Core Operations":
       causalHistory: @[],
       channelId: "testChannel",
       content: @[byte(2)],
-      bloomFilter: @[]
+      bloomFilter: @[],
     )
 
     let serialized1 = serializeMessage(msg1)
@@ -90,10 +90,16 @@ suite "Reliability Mechanisms":
     var messageSentCount = 0
     var missingDepsCount = 0
 
+    # Update anonymous procs to match new signature (add rm parameter)
     rm.setCallbacks(
-      proc(messageId: MessageID) {.gcsafe.} = messageReadyCount += 1,
-      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = missingDepsCount += 1
+      onMessageReady = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageReadyCount += 1,
+      onMessageSent = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageSentCount += 1,
+      onMissingDependencies = proc(
+          rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+      ) {.gcsafe.} =
+        missingDepsCount += 1, # onPeriodicSync is left as default nil
     )
 
     # Create dependency chain: msg3 -> msg2 -> msg1
@@ -105,19 +111,19 @@ suite "Reliability Mechanisms":
     let msg2 = Message(
       messageId: id2,
       lamportTimestamp: 2,
-      causalHistory: @[id1],  # msg2 depends on msg1
+      causalHistory: @[id1], # msg2 depends on msg1
       channelId: "testChannel",
       content: @[byte(2)],
-      bloomFilter: @[]
+      bloomFilter: @[],
     )
 
     let msg3 = Message(
       messageId: id3,
       lamportTimestamp: 3,
-      causalHistory: @[id1, id2],  # msg3 depends on both msg1 and msg2
+      causalHistory: @[id1, id2], # msg3 depends on both msg1 and msg2
       channelId: "testChannel",
       content: @[byte(3)],
-      bloomFilter: @[]
+      bloomFilter: @[],
     )
 
     let serialized2 = serializeMessage(msg2)
@@ -130,10 +136,10 @@ suite "Reliability Mechanisms":
     let unwrapResult3 = rm.unwrapReceivedMessage(serialized3.get())
     check unwrapResult3.isOk()
     let (_, missingDeps3) = unwrapResult3.get()
-    
+
     check:
-      missingDepsCount == 1  # Should trigger missing deps callback
-      missingDeps3.len == 2  # Should be missing both msg1 and msg2
+      missingDepsCount == 1 # Should trigger missing deps callback
+      missingDeps3.len == 2 # Should be missing both msg1 and msg2
       id1 in missingDeps3
       id2 in missingDeps3
 
@@ -141,12 +147,12 @@ suite "Reliability Mechanisms":
     let unwrapResult2 = rm.unwrapReceivedMessage(serialized2.get())
     check unwrapResult2.isOk()
     let (_, missingDeps2) = unwrapResult2.get()
-    
+
     check:
-      missingDepsCount == 2  # Should have triggered another missing deps callback
-      missingDeps2.len == 1  # Should only be missing msg1
+      missingDepsCount == 2 # Should have triggered another missing deps callback
+      missingDeps2.len == 1 # Should only be missing msg1
       id1 in missingDeps2
-      messageReadyCount == 0  # No messages should be ready yet
+      messageReadyCount == 0 # No messages should be ready yet
 
     # Mark first dependency (msg1) as met
     let markResult1 = rm.markDependenciesMet(@[id1])
@@ -156,18 +162,24 @@ suite "Reliability Mechanisms":
 
     check:
       incomingBuffer.len == 0
-      messageReadyCount == 2  # Both msg2 and msg3 should be ready
-      missingDepsCount == 2  # Should still be 2 from the initial missing deps
+      messageReadyCount == 2 # Both msg2 and msg3 should be ready
+      missingDepsCount == 2 # Should still be 2 from the initial missing deps
 
   test "acknowledgment via causal history":
     var messageReadyCount = 0
     var messageSentCount = 0
     var missingDepsCount = 0
 
+    # Update anonymous procs to match new signature (add rm parameter)
     rm.setCallbacks(
-      proc(messageId: MessageID) {.gcsafe.} = messageReadyCount += 1,
-      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = missingDepsCount += 1
+      onMessageReady = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageReadyCount += 1,
+      onMessageSent = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageSentCount += 1,
+      onMissingDependencies = proc(
+          rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+      ) {.gcsafe.} =
+        missingDepsCount += 1,
     )
 
     # Send our message
@@ -180,30 +192,37 @@ suite "Reliability Mechanisms":
     let msg2 = Message(
       messageId: "msg2",
       lamportTimestamp: rm.lamportTimestamp + 1,
-      causalHistory: @[id1],  # Include our message in causal history
+      causalHistory: @[id1], # Include our message in causal history
       channelId: "testChannel",
       content: @[byte(2)],
-      bloomFilter: @[]  # Test with an empty bloom filter
+      bloomFilter: @[] # Test with an empty bloom filter
+      ,
     )
-    
+
     let serializedMsg2 = serializeMessage(msg2)
     check serializedMsg2.isOk()
 
     # Process the "received" message - should trigger callbacks
     let unwrapResult = rm.unwrapReceivedMessage(serializedMsg2.get())
     check unwrapResult.isOk()
-    
+
     check:
-      messageReadyCount == 1  # For msg2 which we "received"
-      messageSentCount == 1   # For msg1 which was acknowledged via causal history
+      messageReadyCount == 1 # For msg2 which we "received"
+      messageSentCount == 1 # For msg1 which was acknowledged via causal history
 
   test "acknowledgment via bloom filter":
     var messageSentCount = 0
-    
+
+    # Update anonymous procs to match new signature (add rm parameter)
     rm.setCallbacks(
-      proc(messageId: MessageID) {.gcsafe.} = discard,
-      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard
+      onMessageReady = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        discard,
+      onMessageSent = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageSentCount += 1,
+      onMissingDependencies = proc(
+          rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+      ) {.gcsafe.} =
+        discard,
     )
 
     # Send our message
@@ -214,22 +233,20 @@ suite "Reliability Mechanisms":
 
     # Create a message with bloom filter containing our message
     var otherPartyBloomFilter = newRollingBloomFilter(
-      DefaultBloomFilterCapacity,
-      DefaultBloomFilterErrorRate,
-      DefaultBloomFilterWindow
+      DefaultBloomFilterCapacity, DefaultBloomFilterErrorRate, DefaultBloomFilterWindow
     )
     otherPartyBloomFilter.add(id1)
-    
+
     let bfResult = serializeBloomFilter(otherPartyBloomFilter.filter)
     check bfResult.isOk()
 
     let msg2 = Message(
       messageId: "msg2",
       lamportTimestamp: rm.lamportTimestamp + 1,
-      causalHistory: @[],  # Empty causal history as we're using bloom filter
+      causalHistory: @[], # Empty causal history as we're using bloom filter
       channelId: "testChannel",
       content: @[byte(2)],
-      bloomFilter: bfResult.get()
+      bloomFilter: bfResult.get(),
     )
 
     let serializedMsg2 = serializeMessage(msg2)
@@ -237,8 +254,8 @@ suite "Reliability Mechanisms":
 
     let unwrapResult = rm.unwrapReceivedMessage(serializedMsg2.get())
     check unwrapResult.isOk()
-    
-    check messageSentCount == 1  # Our message should be acknowledged via bloom filter
+
+    check messageSentCount == 1 # Our message should be acknowledged via bloom filter
 
 # Periodic task & Buffer management tests
 suite "Periodic Tasks & Buffer Management":
@@ -255,15 +272,21 @@ suite "Periodic Tasks & Buffer Management":
 
   test "outgoing buffer management":
     var messageSentCount = 0
-    
+
+    # Update anonymous procs to match new signature (add rm parameter)
     rm.setCallbacks(
-      proc(messageId: MessageID) {.gcsafe.} = discard,
-      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard
+      onMessageReady = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        discard,
+      onMessageSent = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageSentCount += 1,
+      onMissingDependencies = proc(
+          rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+      ) {.gcsafe.} =
+        discard,
     )
 
     # Add multiple messages
-    for i in 0..5:
+    for i in 0 .. 5:
       let msg = @[byte(i)]
       let id = "msg" & $i
       let wrap = rm.wrapOutgoingMessage(msg, id)
@@ -279,37 +302,44 @@ suite "Periodic Tasks & Buffer Management":
       causalHistory: @["msg0", "msg2", "msg4"],
       channelId: "testChannel",
       content: @[byte(100)],
-      bloomFilter: @[]
+      bloomFilter: @[],
     )
-    
+
     let serializedAck = serializeMessage(ackMsg)
     check serializedAck.isOk()
-    
+
     # Process the acknowledgment
     discard rm.unwrapReceivedMessage(serializedAck.get())
-    
+
     let finalBuffer = rm.getOutgoingBuffer()
     check:
-      finalBuffer.len == 3  # Should have removed acknowledged messages
-      messageSentCount == 3  # Should have triggered sent callback for acknowledged messages
+      finalBuffer.len == 3 # Should have removed acknowledged messages
+      messageSentCount == 3
+        # Should have triggered sent callback for acknowledged messages
 
   test "periodic buffer sweep and bloom clean":
     var messageSentCount = 0
-    
+
     var config = defaultConfig()
-    config.resendInterval = initDuration(milliseconds = 100)       # Short for testing
-    config.bufferSweepInterval = initDuration(milliseconds = 50)   # Frequent sweeps
-    config.bloomFilterWindow = initDuration(milliseconds = 150)    # Short window
+    config.resendInterval = initDuration(milliseconds = 100) # Short for testing
+    config.bufferSweepInterval = initDuration(milliseconds = 50) # Frequent sweeps
+    config.bloomFilterWindow = initDuration(milliseconds = 150) # Short window
     config.maxResendAttempts = 3 # Set a low number of max attempts
-    
+
     let rmResultP = newReliabilityManager("testChannel", config)
     check rmResultP.isOk()
     let rm = rmResultP.get()
-    
+
+    # Update anonymous procs to match new signature (add rm parameter)
     rm.setCallbacks(
-      proc(messageId: MessageID) {.gcsafe.} = discard,
-      proc(messageId: MessageID) {.gcsafe.} = messageSentCount += 1,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard
+      onMessageReady = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        discard,
+      onMessageSent = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageSentCount += 1,
+      onMissingDependencies = proc(
+          rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+      ) {.gcsafe.} =
+        discard,
     )
 
     # First message - should be cleaned from bloom filter later
@@ -324,10 +354,10 @@ suite "Periodic Tasks & Buffer Management":
       rm.bloomFilter.contains(id1)
 
     rm.startPeriodicTasks()
-    
+
     # Wait long enough for bloom filter window to pass and first message to exceed max retries
     waitFor sleepAsync(chronos.milliseconds(500))
-    
+
     # Add new message
     let msg2 = @[byte(2)]
     let id2 = "msg2"
@@ -336,27 +366,35 @@ suite "Periodic Tasks & Buffer Management":
 
     let finalBuffer = rm.getOutgoingBuffer()
     check:
-      finalBuffer.len == 1                  # Only msg2 should be in buffer, msg1 should be removed after max retries
+      finalBuffer.len == 1
+        # Only msg2 should be in buffer, msg1 should be removed after max retries
       finalBuffer[0].message.messageId == id2 # Verify it's the second message
-      finalBuffer[0].resendAttempts == 0    # New message should have 0 attempts
-      not rm.bloomFilter.contains(id1)      # Bloom filter cleaning check
-      rm.bloomFilter.contains(id2)          # New message still in filter
+      finalBuffer[0].resendAttempts == 0 # New message should have 0 attempts
+      not rm.bloomFilter.contains(id1) # Bloom filter cleaning check
+      rm.bloomFilter.contains(id2) # New message still in filter
 
     rm.cleanup()
 
   test "periodic sync callback":
     var syncCallCount = 0
+    # Update anonymous procs to match new signature (add rm parameter)
     rm.setCallbacks(
-      proc(messageId: MessageID) {.gcsafe.} = discard,
-      proc(messageId: MessageID) {.gcsafe.} = discard,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard,
-      proc() {.gcsafe.} = syncCallCount += 1
+      onMessageReady = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        discard,
+      onMessageSent = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        discard,
+      onMissingDependencies = proc(
+          rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+      ) {.gcsafe.} =
+        discard,
+      onPeriodicSync = proc(rm: ReliabilityManager) {.gcsafe.} =
+        syncCallCount += 1, # Already correct from previous partial apply
     )
 
     rm.startPeriodicTasks()
     waitFor sleepAsync(chronos.seconds(1))
     rm.cleanup()
-    
+
     check syncCallCount > 0
 
 # Special cases handling
@@ -374,12 +412,12 @@ suite "Special Cases Handling":
 
   test "message history limits":
     # Add messages up to max history size
-    for i in 0..rm.config.maxMessageHistory + 5:
+    for i in 0 .. rm.config.maxMessageHistory + 5:
       let msg = @[byte(i)]
       let id = "msg" & $i
       let wrap = rm.wrapOutgoingMessage(msg, id)
       check wrap.isOk()
-    
+
     let history = rm.getMessageHistory()
     check:
       history.len <= rm.config.maxMessageHistory
@@ -392,7 +430,8 @@ suite "Special Cases Handling":
       causalHistory: @[],
       channelId: "testChannel",
       content: @[byte(1)],
-      bloomFilter: @[1.byte, 2.byte, 3.byte]  # Invalid filter data
+      bloomFilter: @[1.byte, 2.byte, 3.byte] # Invalid filter data
+      ,
     )
 
     let serializedInvalid = serializeMessage(msgInvalid)
@@ -402,14 +441,20 @@ suite "Special Cases Handling":
     let result = rm.unwrapReceivedMessage(serializedInvalid.get())
     check:
       result.isOk()
-      result.get()[1].len == 0  # No missing dependencies
+      result.get()[1].len == 0 # No missing dependencies
 
   test "duplicate message handling":
     var messageReadyCount = 0
+    # Update anonymous procs to match new signature (add rm parameter)
     rm.setCallbacks(
-      proc(messageId: MessageID) {.gcsafe.} = messageReadyCount += 1,
-      proc(messageId: MessageID) {.gcsafe.} = discard,
-      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} = discard
+      onMessageReady = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        messageReadyCount += 1, # Already correct from previous partial apply
+      onMessageSent = proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.} =
+        discard, # Already correct from previous partial apply
+      onMissingDependencies = proc(
+          rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+      ) {.gcsafe.} =
+        discard, # Already correct from previous partial apply
     )
 
     # Create and process a message
@@ -419,7 +464,7 @@ suite "Special Cases Handling":
       causalHistory: @[],
       channelId: "testChannel",
       content: @[byte(1)],
-      bloomFilter: @[]
+      bloomFilter: @[],
     )
 
     let serialized = serializeMessage(msg)
@@ -431,8 +476,8 @@ suite "Special Cases Handling":
     let result2 = rm.unwrapReceivedMessage(serialized.get())
     check:
       result2.isOk()
-      result2.get()[1].len == 0  # No missing deps on second process
-      messageReadyCount == 1  # Message should only be processed once
+      result2.get()[1].len == 0 # No missing deps on second process
+      messageReadyCount == 1 # Message should only be processed once
 
   test "error handling":
     # Empty message

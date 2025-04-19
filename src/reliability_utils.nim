@@ -2,7 +2,25 @@ import std/[times, locks]
 import ./[rolling_bloom_filter, message]
 
 type
-  PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
+  # Forward declare C types needed within ReliabilityManager definition
+  # Ideally, these would be imported from a shared header/module if possible,
+  # but defining them here avoids circular dependencies for now.
+  CEventType* {.importc: "CEventType", header: "../bindings/bindings.h", pure.} = enum
+    # Use relative path
+    EVENT_MESSAGE_READY = 1
+    EVENT_MESSAGE_SENT = 2
+    EVENT_MISSING_DEPENDENCIES = 3
+    EVENT_PERIODIC_SYNC = 4
+
+  CEventCallback* = proc(
+    handle: pointer,
+    eventType: CEventType,
+    data1: pointer,
+    data2: pointer,
+    data3: csize_t,
+  ) {.cdecl, gcsafe.}
+
+  PeriodicSyncCallback* = proc() {.gcsafe, raises: [].} # This is the Nim internal type
 
   ReliabilityConfig* = object
     bloomFilterCapacity*: int
@@ -24,10 +42,19 @@ type
     channelId*: string
     config*: ReliabilityConfig
     lock*: Lock
-    onMessageReady*: proc(messageId: MessageID)
-    onMessageSent*: proc(messageId: MessageID)
-    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID])
-    onPeriodicSync*: proc()
+    # Nim internal callbacks (assigned in bindings/bindings.nim)
+    onMessageReady*: proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.}
+      # Pass rm
+    onMessageSent*: proc(rm: ReliabilityManager, messageId: MessageID) {.gcsafe.}
+      # Pass rm
+    onMissingDependencies*: proc(
+      rm: ReliabilityManager, messageId: MessageID, missingDeps: seq[MessageID]
+    ) {.gcsafe.} # Pass rm
+    onPeriodicSync*: proc(rm: ReliabilityManager) {.gcsafe.} # Pass rm
+
+    # C callback info (set via RegisterCallback)
+    cCallback*: CEventCallback
+    cUserData*: pointer
 
   ReliabilityError* = enum
     reInvalidArgument
@@ -51,7 +78,7 @@ proc defaultConfig*(): ReliabilityConfig =
     resendInterval: DefaultResendInterval,
     maxResendAttempts: DefaultMaxResendAttempts,
     syncMessageInterval: DefaultSyncMessageInterval,
-    bufferSweepInterval: DefaultBufferSweepInterval
+    bufferSweepInterval: DefaultBufferSweepInterval,
   )
 
 proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
@@ -76,7 +103,9 @@ proc addToHistory*(rm: ReliabilityManager, msgId: MessageID) {.gcsafe, raises: [
   if rm.messageHistory.len > rm.config.maxMessageHistory:
     rm.messageHistory.delete(0)
 
-proc updateLamportTimestamp*(rm: ReliabilityManager, msgTs: int64) {.gcsafe, raises: [].} =
+proc updateLamportTimestamp*(
+    rm: ReliabilityManager, msgTs: int64
+) {.gcsafe, raises: [].} =
   rm.lamportTimestamp = max(msgTs, rm.lamportTimestamp) + 1
 
 proc getRecentMessageIDs*(rm: ReliabilityManager, n: int): seq[MessageID] =

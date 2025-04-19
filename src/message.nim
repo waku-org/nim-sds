@@ -27,4 +27,4 @@ const
   DefaultMaxResendAttempts* = 5
   DefaultSyncMessageInterval* = initDuration(seconds = 30)
   DefaultBufferSweepInterval* = initDuration(seconds = 60)
-  MaxMessageSize* = 1024 * 1024  # 1 MB
+  MaxMessageSize* = 1024 * 1024 # 1 MB

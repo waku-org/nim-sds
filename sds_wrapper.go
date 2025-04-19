@@ -64,13 +64,14 @@ func NewReliabilityManager(channelId string) (ReliabilityManagerHandle, error) {
 
 // CleanupReliabilityManager frees the resources associated with the handle
 func CleanupReliabilityManager(handle ReliabilityManagerHandle) {
+	fmt.Printf("Go: CleanupReliabilityManager called for handle %p\n", handle) // Log entry
 	if handle == nil {
+		fmt.Println("Go: CleanupReliabilityManager: handle is nil, returning.")
 		return
 	}
-	registryMutex.Lock()
-	delete(callbackRegistry, handle)
-	registryMutex.Unlock()
+	fmt.Printf("Go: CleanupReliabilityManager: Calling C.CleanupReliabilityManager for handle %p\n", handle)
 	C.CleanupReliabilityManager(unsafe.Pointer(handle))
+	fmt.Printf("Go: CleanupReliabilityManager: C.CleanupReliabilityManager returned for handle %p\n", handle) // Log exit
 }
 
 // ResetReliabilityManager resets the state of the manager
@@ -212,7 +213,7 @@ func RegisterCallback(handle ReliabilityManagerHandle, callbacks Callbacks) erro
 	C.RegisterCallback(
 		unsafe.Pointer(handle),
 		(C.CEventCallback)(C.globalCallbackRelay), // Pass the Go relay function pointer
-		nil, // user_data is not used here, handle is passed directly by Nim wrapper
+		nil,
 	)
 	return nil
 }
@@ -229,6 +230,7 @@ func StartPeriodicTasks(handle ReliabilityManagerHandle) error {
 
 // globalCallbackRelay is called by Nim for all events.
 // It uses the handle to find the correct Go Callbacks struct and dispatch the call.
+
 //export globalCallbackRelay
 func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 unsafe.Pointer, data2 unsafe.Pointer, data3 C.size_t) {
 	goHandle := ReliabilityManagerHandle(handle)
@@ -238,13 +240,11 @@ func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 un
 	registryMutex.RUnlock()
 
 	if !ok || callbacks == nil {
-		fmt.Printf("Go: globalCallbackRelay: No callbacks registered for handle %v\n", goHandle) // Uncommented
+		fmt.Printf("Go: globalCallbackRelay: No callbacks registered for handle %v\n", goHandle)
 		return
 	}
 
-	// Use a goroutine to avoid blocking the Nim thread
-	go func() {
-		switch eventType {
+	switch eventType {
 		case C.EVENT_MESSAGE_READY:
 			if callbacks.OnMessageReady != nil {
 				msgIdStr := C.GoString((*C.char)(data1))
@@ -275,6 +275,5 @@ func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 un
 			}
 		default:
 			fmt.Printf("Go: globalCallbackRelay: Received unknown event type %d for handle %v\n", eventType, goHandle)
-		}
-	}()
+	}
 }
