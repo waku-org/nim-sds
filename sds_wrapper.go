@@ -2,7 +2,7 @@ package main
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/bindings
-#cgo LDFLAGS: -L${SRCDIR}/bindings/generated -lbindings
+#cgo LDFLAGS: -L${SRCDIR}/bindings/generated -lsds
 #cgo LDFLAGS: -Wl,-rpath,${SRCDIR}/bindings/generated
 
 #include <stdlib.h> // For C.free
@@ -41,7 +41,7 @@ type Callbacks struct {
 	OnPeriodicSync        func()
 }
 
-// Global map to store callbacks associated with handles
+// Global map to store callbacks associated with handles (needed for Go relay)
 var (
 	callbackRegistry = make(map[ReliabilityManagerHandle]*Callbacks)
 	registryMutex    sync.RWMutex
@@ -56,7 +56,6 @@ func NewReliabilityManager(channelId string) (ReliabilityManagerHandle, error) {
 
 	handle := C.NewReliabilityManager(cChannelId)
 	if handle == nil {
-		// Note: Nim side currently just prints to stdout on creation failure
 		return nil, errors.New("failed to create ReliabilityManager (check Nim logs/stdout)")
 	}
 	return ReliabilityManagerHandle(handle), nil
@@ -67,6 +66,7 @@ func CleanupReliabilityManager(handle ReliabilityManagerHandle) {
 	if handle == nil {
 		return
 	}
+	// Remove from Go registry first
 	registryMutex.Lock()
 	delete(callbackRegistry, handle)
 	registryMutex.Unlock()
@@ -212,7 +212,7 @@ func RegisterCallback(handle ReliabilityManagerHandle, callbacks Callbacks) erro
 	C.RegisterCallback(
 		unsafe.Pointer(handle),
 		(C.CEventCallback)(C.globalCallbackRelay), // Pass the Go relay function pointer
-		nil, // user_data is not used here, handle is passed directly by Nim wrapper
+		nil,
 	)
 	return nil
 }
@@ -229,6 +229,7 @@ func StartPeriodicTasks(handle ReliabilityManagerHandle) error {
 
 // globalCallbackRelay is called by Nim for all events.
 // It uses the handle to find the correct Go Callbacks struct and dispatch the call.
+
 //export globalCallbackRelay
 func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 unsafe.Pointer, data2 unsafe.Pointer, data3 C.size_t) {
 	goHandle := ReliabilityManagerHandle(handle)
@@ -238,43 +239,39 @@ func globalCallbackRelay(handle unsafe.Pointer, eventType C.CEventType, data1 un
 	registryMutex.RUnlock()
 
 	if !ok || callbacks == nil {
-		fmt.Printf("Go: globalCallbackRelay: No callbacks registered for handle %v\n", goHandle) // Uncommented
 		return
 	}
 
-	// Use a goroutine to avoid blocking the Nim thread
-	go func() {
-		switch eventType {
-		case C.EVENT_MESSAGE_READY:
-			if callbacks.OnMessageReady != nil {
-				msgIdStr := C.GoString((*C.char)(data1))
-				callbacks.OnMessageReady(MessageID(msgIdStr))
-			}
-		case C.EVENT_MESSAGE_SENT:
-			if callbacks.OnMessageSent != nil {
-				msgIdStr := C.GoString((*C.char)(data1))
-				callbacks.OnMessageSent(MessageID(msgIdStr))
-			}
-		case C.EVENT_MISSING_DEPENDENCIES:
-			if callbacks.OnMissingDependencies != nil {
-				msgIdStr := C.GoString((*C.char)(data1))
-				depsCount := int(data3)
-				deps := make([]MessageID, depsCount)
-				if depsCount > 0 {
-					// Convert C array of C strings (**char) to Go slice
-					cDepsArray := (*[1 << 30]*C.char)(data2)[:depsCount:depsCount]
-					for i, s := range cDepsArray {
-						deps[i] = MessageID(C.GoString(s))
-					}
-				}
-				callbacks.OnMissingDependencies(MessageID(msgIdStr), deps)
-			}
-		case C.EVENT_PERIODIC_SYNC:
-			if callbacks.OnPeriodicSync != nil {
-				callbacks.OnPeriodicSync()
-			}
-		default:
-			fmt.Printf("Go: globalCallbackRelay: Received unknown event type %d for handle %v\n", eventType, goHandle)
+	switch eventType {
+	case C.EVENT_MESSAGE_READY:
+		if callbacks.OnMessageReady != nil {
+			msgIdStr := C.GoString((*C.char)(data1))
+			callbacks.OnMessageReady(MessageID(msgIdStr))
 		}
-	}()
+	case C.EVENT_MESSAGE_SENT:
+		if callbacks.OnMessageSent != nil {
+			msgIdStr := C.GoString((*C.char)(data1))
+			callbacks.OnMessageSent(MessageID(msgIdStr))
+		}
+	case C.EVENT_MISSING_DEPENDENCIES:
+		if callbacks.OnMissingDependencies != nil {
+			msgIdStr := C.GoString((*C.char)(data1))
+			depsCount := int(data3)
+			deps := make([]MessageID, depsCount)
+			if depsCount > 0 {
+				// Convert C array of C strings (**char) to Go slice
+				cDepsArray := (*[1 << 30]*C.char)(data2)[:depsCount:depsCount]
+				for i, s := range cDepsArray {
+					deps[i] = MessageID(C.GoString(s))
+				}
+			}
+			callbacks.OnMissingDependencies(MessageID(msgIdStr), deps)
+		}
+	case C.EVENT_PERIODIC_SYNC:
+		if callbacks.OnPeriodicSync != nil {
+			callbacks.OnPeriodicSync()
+		}
+	default:
+		fmt.Printf("Go: globalCallbackRelay: Received unknown event type %d for handle %v\n", eventType, goHandle)
+	}
 }

@@ -1,6 +1,6 @@
 .DS_Store
 tests/test_reliability
-tests/bloom
+tests/test_bloom
 nph
 docs
 for_reference
