@@ -196,6 +196,7 @@ proc CleanupReliabilityManager(
 proc ResetReliabilityManager(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
+  initializeLibrary()
   checkLibsdsParams(ctx, callback, userData)
   handleRequest(
     ctx,
@@ -289,6 +290,7 @@ proc MarkDependenciesMet(
 proc StartPeriodicTasks(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
+  initializeLibrary()
   checkLibsdsParams(ctx, callback, userData)
   handleRequest(
     ctx,
