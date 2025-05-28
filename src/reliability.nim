@@ -208,10 +208,8 @@ proc unwrapReceivedMessage*(
           break
 
       if depsInBuffer:
-        rm.incomingBuffer[msg.messageId] = IncomingMessage(
-          message: msg,
-          missingDeps: initHashSet[SdsMessageID]()
-        )
+        rm.incomingBuffer[msg.messageId] =
+          IncomingMessage(message: msg, missingDeps: initHashSet[SdsMessageID]())
       else:
         # All dependencies met, add to history
         rm.addToHistory(msg.messageId)
@@ -219,10 +217,8 @@ proc unwrapReceivedMessage*(
         if not rm.onMessageReady.isNil():
           rm.onMessageReady(msg.messageId)
     else:
-      rm.incomingBuffer[msg.messageId] = IncomingMessage(
-        message: msg,
-        missingDeps: missingDeps.toHashSet()
-      )
+      rm.incomingBuffer[msg.messageId] =
+        IncomingMessage(message: msg, missingDeps: missingDeps.toHashSet())
       if not rm.onMissingDependencies.isNil():
         rm.onMissingDependencies(msg.messageId, missingDeps)
 
