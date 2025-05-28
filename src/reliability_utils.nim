@@ -2,7 +2,20 @@ import std/[times, locks]
 import ./[rolling_bloom_filter, message]
 
 type
+  MessageReadyCallback* = proc(messageId: MessageID) {.gcsafe.}
+
+  MessageSentCallback* = proc(messageId: MessageID) {.gcsafe.}
+
+  MissingDependenciesCallback* =
+    proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
+
   PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
+
+  AppCallbacks* = ref object
+    messageReadyCb*: MessageReadyCallback
+    messageSentCb*: MessageSentCallback
+    missingDependenciesCb*: MissingDependenciesCallback
+    periodicSyncCb*: PeriodicSyncCallback
 
   ReliabilityConfig* = object
     bloomFilterCapacity*: int
@@ -24,9 +37,10 @@ type
     channelId*: string
     config*: ReliabilityConfig
     lock*: Lock
-    onMessageReady*: proc(messageId: MessageID)
-    onMessageSent*: proc(messageId: MessageID)
-    onMissingDependencies*: proc(messageId: MessageID, missingDeps: seq[MessageID])
+    onMessageReady*: proc(messageId: MessageID) {.gcsafe.}
+    onMessageSent*: proc(messageId: MessageID) {.gcsafe.}
+    onMissingDependencies*:
+      proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.}
     onPeriodicSync*: proc()
 
   ReliabilityError* = enum
@@ -51,7 +65,7 @@ proc defaultConfig*(): ReliabilityConfig =
     resendInterval: DefaultResendInterval,
     maxResendAttempts: DefaultMaxResendAttempts,
     syncMessageInterval: DefaultSyncMessageInterval,
-    bufferSweepInterval: DefaultBufferSweepInterval
+    bufferSweepInterval: DefaultBufferSweepInterval,
   )
 
 proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
@@ -76,7 +90,9 @@ proc addToHistory*(rm: ReliabilityManager, msgId: MessageID) {.gcsafe, raises: [
   if rm.messageHistory.len > rm.config.maxMessageHistory:
     rm.messageHistory.delete(0)
 
-proc updateLamportTimestamp*(rm: ReliabilityManager, msgTs: int64) {.gcsafe, raises: [].} =
+proc updateLamportTimestamp*(
+    rm: ReliabilityManager, msgTs: int64
+) {.gcsafe, raises: [].} =
   rm.lamportTimestamp = max(msgTs, rm.lamportTimestamp) + 1
 
 proc getRecentMessageIDs*(rm: ReliabilityManager, n: int): seq[MessageID] =
