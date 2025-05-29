@@ -38,7 +38,7 @@ proc createReliabilityManager(
     error "Failed creating ReliabilityManager: Channel ID cannot be empty"
     return err("Failed creating ReliabilityManager: Channel ID cannot be empty")
 
-  let rm = newReliabilityManager(channelId).valueOr:
+  let rm = newReliabilityManager(some(channelId)).valueOr:
     error "Failed creating reliability manager", error = error
     return err("Failed creating reliability manager: " & $error)
 

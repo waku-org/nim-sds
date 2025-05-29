@@ -72,17 +72,17 @@ proc handleRequest(
   return RET_OK
 
 proc onMessageReady(ctx: ptr SdsContext): MessageReadyCallback =
-  return proc(messageId: MessageID) {.gcsafe.} =
+  return proc(messageId: SdsMessageID) {.gcsafe.} =
     callEventCallback(ctx, "onMessageReady"):
       $JsonMessageReadyEvent.new(messageId)
 
 proc onMessageSent(ctx: ptr SdsContext): MessageSentCallback =
-  return proc(messageId: MessageID) {.gcsafe.} =
+  return proc(messageId: SdsMessageID) {.gcsafe.} =
     callEventCallback(ctx, "onMessageSent"):
       $JsonMessageSentEvent.new(messageId)
 
 proc onMissingDependencies(ctx: ptr SdsContext): MissingDependenciesCallback =
-  return proc(messageId: MessageID, missingDeps: seq[MessageID]) {.gcsafe.} =
+  return proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID]) {.gcsafe.} =
     callEventCallback(ctx, "onMissingDependencies"):
       $JsonMissingDependenciesEvent.new(messageId, missingDeps)
 

@@ -16,7 +16,7 @@ type SdsMessageRequest* = object
 
 type SdsUnwrapResponse* = object
   message*: seq[byte]
-  missingDeps*: seq[MessageID]
+  missingDeps*: seq[SdsMessageID]
 
 proc createShared*(
     T: type SdsMessageRequest,
