@@ -1,8 +1,8 @@
 import std/[times, options, sets]
 
 type
-  SdsMessageID* = seq[byte]
-  SdsChannelID* = seq[byte]
+  SdsMessageID* = string
+  SdsChannelID* = string
 
   SdsMessage* = object
     messageId*: SdsMessageID

@@ -12,6 +12,12 @@ type
 
   PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
 
+  AppCallbacks* = ref object
+    messageReadyCb*: MessageReadyCallback
+    messageSentCb*: MessageSentCallback
+    missingDependenciesCb*: MissingDependenciesCallback
+    periodicSyncCb*: PeriodicSyncCallback
+
   ReliabilityConfig* = object
     bloomFilterCapacity*: int
     bloomFilterErrorRate*: float

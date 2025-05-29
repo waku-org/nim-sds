@@ -32,12 +32,12 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
     return err(ProtobufError.missingRequiredField("lamportTimestamp"))
   msg.lamportTimestamp = int64(timestamp)
 
-  var causalHistory: seq[seq[byte]]
+  var causalHistory: seq[SdsMessageID]
   let histResult = pb.getRepeatedField(3, causalHistory)
   if histResult.isOk:
     msg.causalHistory = causalHistory
 
-  var channelId: seq[byte]
+  var channelId: SdsChannelID
   if ?pb.getField(4, channelId):
     msg.channelId = some(channelId)
   else:
