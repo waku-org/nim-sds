@@ -13,13 +13,17 @@ proc newReliabilityManager*(
   ##
   ## Returns:
   ##   A Result containing either a new ReliabilityManager instance or an error.
+  echo "--------------- newReliabilityManager 1"
   if not channelId.isSome():
+    echo "--------------- newReliabilityManager 2"
     return err(ReliabilityError.reInvalidArgument)
 
   try:
+    echo "--------------- newReliabilityManager 3"
     let bloomFilter =
       newRollingBloomFilter(config.bloomFilterCapacity, config.bloomFilterErrorRate)
 
+    echo "--------------- newReliabilityManager 4"
     let rm = ReliabilityManager(
       lamportTimestamp: 0,
       messageHistory: @[],
@@ -29,7 +33,9 @@ proc newReliabilityManager*(
       channelId: channelId,
       config: config,
     )
+    echo "--------------- newReliabilityManager 5"
     initLock(rm.lock)
+    echo "--------------- newReliabilityManager 6"
     return ok(rm)
   except Exception:
     error "Failed to create ReliabilityManager", msg = getCurrentExceptionMsg()
@@ -269,11 +275,13 @@ proc setCallbacks*(
   ##   - onMessageSent: Callback function called when a message is confirmed as sent.
   ##   - onMissingDependencies: Callback function called when a message has missing dependencies.
   ##   - onPeriodicSync: Callback function called to notify about periodic sync
+  echo "---------- calling setCallbacks"
   withLock rm.lock:
     rm.onMessageReady = onMessageReady
     rm.onMessageSent = onMessageSent
     rm.onMissingDependencies = onMissingDependencies
     rm.onPeriodicSync = onPeriodicSync
+  echo "-------- after setCallbacks"
 
 proc checkUnacknowledgedMessages(rm: ReliabilityManager) {.gcsafe.} =
   ## Checks and processes unacknowledged messages in the outgoing buffer.

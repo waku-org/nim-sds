@@ -246,6 +246,7 @@ proc WrapOutgoingMessage(
     return RET_ERR
 
   echo "------------- WrapOutgoingMessage 6"
+  echo "------------- WrapOutgoingMessage messageId: ", $messageId
   handleRequest(
     ctx,
     RequestType.MESSAGE,

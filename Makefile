@@ -39,6 +39,17 @@ deps: | sds.nims
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
 
+## Git version
+GIT_VERSION ?= $(shell git describe --abbrev=6 --always --tags)
+## Compilation parameters. If defined in the CLI the assignments won't be executed
+NIM_PARAMS := $(NIM_PARAMS) -d:git_version=\"$(GIT_VERSION)\"
+
+ifeq ($(DEBUG), 0)
+NIM_PARAMS := $(NIM_PARAMS) -d:release
+else
+NIM_PARAMS := $(NIM_PARAMS) -d:debug
+endif
+
 STATIC ?= 0
 
 libsds: deps

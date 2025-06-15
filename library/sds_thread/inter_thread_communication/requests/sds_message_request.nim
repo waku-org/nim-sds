@@ -48,6 +48,7 @@ proc process*(
   of WRAP_MESSAGE:
     let messageBytes = self.message.toSeq()
 
+    echo "-------------- WRAP_MESSAGE bytes: ", $messageBytes
     let wrappedMessage = wrapOutgoingMessage(rm[], messageBytes, $self.messageId).valueOr:
       error "WRAP_MESSAGE failed", error = error
       return err("error processing WRAP_MESSAGE request: " & $error)

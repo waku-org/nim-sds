@@ -1,3 +1,5 @@
+mode = ScriptMode.Verbose
+
 # Package
 version       = "0.1.0"
 author        = "Waku Team"
@@ -6,9 +8,14 @@ license       = "MIT"
 srcDir        = "src"
 
 # Dependencies
-requires "nim >= 2.0.8"
-requires "chronicles"
-requires "libp2p"
+requires "nim >= 2.2.4",
+  "chronicles",
+  "chronos",
+  "stew",
+  "stint",
+  "metrics",
+  "libp2p",
+  "results"
 
 proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
   if not dirExists "build":
@@ -35,5 +42,11 @@ task libsdsDynamic, "Generate bindings":
   let name = "libsds"
   buildLibrary name,
     "library/",
-    "",
+    """-d:chronicles_line_numbers \
+       -d:chronicles_runtime_filtering=on \
+       -d:chronicles_sinks="textlines,json" \
+       -d:chronicles_default_output_device=Dynamic \
+       --warning:Deprecated:off \
+       --warning:UnusedImport:on \
+       -d:chronicles_log_level=TRACE """,
     "dynamic"
