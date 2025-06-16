@@ -137,6 +137,7 @@ proc NewReliabilityManager(
 
   ## Creates a new instance of the Reliability Manager.
   if isNil(callback):
+    echo "error: missing callback in NewReliabilityManager"
     return nil
 
   ## Create the SDS thread that will keep waiting for req from the main thread.
