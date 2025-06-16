@@ -130,7 +130,7 @@ proc initializeLibrary() {.exported.} =
 ################################################################################
 ### Exported procs
 
-proc NewReliabilityManager(
+proc SdsNewReliabilityManager(
     channelId: cstring, callback: SdsCallBack, userData: pointer
 ): pointer {.dynlib, exportc, cdecl.} =
   initializeLibrary()
@@ -177,7 +177,7 @@ proc SdsSetEventCallback(
   ctx[].eventCallback = cast[pointer](callback)
   ctx[].eventUserData = userData
 
-proc CleanupReliabilityManager(
+proc SdsCleanupReliabilityManager(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
@@ -193,7 +193,7 @@ proc CleanupReliabilityManager(
 
   return RET_OK
 
-proc ResetReliabilityManager(
+proc SdsResetReliabilityManager(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
@@ -206,7 +206,7 @@ proc ResetReliabilityManager(
     userData,
   )
 
-proc WrapOutgoingMessage(
+proc SdsWrapOutgoingMessage(
     ctx: ptr SdsContext,
     message: pointer,
     messageLen: csize_t,
@@ -237,7 +237,7 @@ proc WrapOutgoingMessage(
     userData,
   )
 
-proc UnwrapReceivedMessage(
+proc SdsUnwrapReceivedMessage(
     ctx: ptr SdsContext,
     message: pointer,
     messageLen: csize_t,
@@ -262,7 +262,7 @@ proc UnwrapReceivedMessage(
     userData,
   )
 
-proc MarkDependenciesMet(
+proc SdsMarkDependenciesMet(
     ctx: ptr SdsContext,
     messageIds: pointer,
     count: csize_t,
@@ -287,7 +287,7 @@ proc MarkDependenciesMet(
     userData,
   )
 
-proc StartPeriodicTasks(
+proc SdsStartPeriodicTasks(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()

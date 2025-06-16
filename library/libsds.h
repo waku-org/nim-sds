@@ -24,34 +24,34 @@ typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* u
 // --- Core API Functions ---
 
 
-void* NewReliabilityManager(const char* channelId, SdsCallBack callback, void* userData);
+void* SdsNewReliabilityManager(const char* channelId, SdsCallBack callback, void* userData);
 
 void SdsSetEventCallback(void* ctx, SdsCallBack callback, void* userData);
 
-int CleanupReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
+int SdsCleanupReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
 
-int ResetReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
+int SdsResetReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
 
-int WrapOutgoingMessage(void* ctx,
+int SdsWrapOutgoingMessage(void* ctx,
                     void* message,
                     size_t messageLen,
                     const char* messageId,
                     SdsCallBack callback,
                     void* userData);
 
-int UnwrapReceivedMessage(void* ctx, 
+int SdsUnwrapReceivedMessage(void* ctx, 
                     void* message, 
                     size_t messageLen, 
                     SdsCallBack callback, 
                     void* userData);
 
-int MarkDependenciesMet(void* ctx, 
+int SdsMarkDependenciesMet(void* ctx, 
                     char** messageIDs, 
                     size_t count, 
                     SdsCallBack callback,
                     void* userData);
 
-int StartPeriodicTasks(void* ctx, SdsCallBack callback, void* userData);
+int SdsStartPeriodicTasks(void* ctx, SdsCallBack callback, void* userData);
 
 
 
