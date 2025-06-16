@@ -27,7 +27,6 @@ proc createShared*(
     callback: SdsCallBack,
     userData: pointer,
 ): ptr type T =
-  echo "---------- createShared 1"
   var ret = createShared(T)
   ret[].reqType = reqType
   ret[].reqContent = reqContent
@@ -41,12 +40,10 @@ proc handleRes[T: string | void](
   ## Handles the Result responses, which can either be Result[string, string] or
   ## Result[void, string].
 
-  echo "-------------- handleRes 1"
   defer:
     deallocShared(request)
 
   if res.isErr():
-    echo "-------------- handleRes 2"
     foreignThreadGc:
       let msg = "libsds error: handleRes fireSyncRes error: " & $res.error
       request[].callback(
@@ -55,14 +52,12 @@ proc handleRes[T: string | void](
     return
 
   foreignThreadGc:
-    echo "-------------- handleRes 3"
     var msg: cstring = ""
     when T is string:
       msg = res.get().cstring()
     request[].callback(
       RET_OK, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
     )
-  echo "-------------- handleRes 4"
   return
 
 proc process*(

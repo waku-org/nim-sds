@@ -35,32 +35,27 @@ template checkLibsdsParams*(
     return RET_MISSING_CALLBACK
 
 template callEventCallback(ctx: ptr SdsContext, eventName: string, body: untyped) =
-  echo "------------- callEventCallback 1"
   if isNil(ctx[].eventCallback):
     error eventName & " - eventCallback is nil"
     return
 
-  echo "------------- callEventCallback 2"
   if isNil(ctx[].eventUserData):
     error eventName & " - eventUserData is nil"
     return
 
   foreignThreadGc:
     try:
-      echo "------------- callEventCallback 3"
       let event = body
       cast[SdsCallBack](ctx[].eventCallback)(
         RET_OK, unsafeAddr event[0], cast[csize_t](len(event)), ctx[].eventUserData
       )
     except Exception, CatchableError:
-      echo "------------- callEventCallback 4"
       let msg =
         "Exception " & eventName & " when calling 'eventCallBack': " &
         getCurrentExceptionMsg()
       cast[SdsCallBack](ctx[].eventCallback)(
         RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), ctx[].eventUserData
       )
-    echo "------------- callEventCallback 5"
 
 proc handleRequest(
     ctx: ptr SdsContext,
@@ -69,15 +64,11 @@ proc handleRequest(
     callback: SdsCallBack,
     userData: pointer,
 ): cint =
-  echo "---------------- handleRequest 1"
   sds_thread.sendRequestToSdsThread(ctx, requestType, content, callback, userData).isOkOr:
-    echo "---------------- handleRequest 2"
     let msg = "libsds error: " & $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    echo "---------------- handleRequest 3"
     return RET_ERR
 
-  echo "---------------- handleRequest 4"
   return RET_OK
 
 proc onMessageReady(ctx: ptr SdsContext): MessageReadyCallback =
@@ -142,12 +133,10 @@ proc initializeLibrary() {.exported.} =
 proc NewReliabilityManager(
     channelId: cstring, callback: SdsCallBack, userData: pointer
 ): pointer {.dynlib, exportc, cdecl.} =
-  echo "------------- NewReliabilityManager 1"
   initializeLibrary()
 
   ## Creates a new instance of the Reliability Manager.
   if isNil(callback):
-    echo "error: missing callback in NewReliabilityManager"
     return nil
 
   ## Create the SDS thread that will keep waiting for req from the main thread.
@@ -180,10 +169,9 @@ proc NewReliabilityManager(
 
   return ctx
 
-proc SetEventCallback(
+proc SdsSetEventCallback(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ) {.dynlib, exportc.} =
-  echo "------------- SetEventCallback 1"
   initializeLibrary()
   ctx[].eventCallback = cast[pointer](callback)
   ctx[].eventUserData = userData
@@ -191,7 +179,6 @@ proc SetEventCallback(
 proc CleanupReliabilityManager(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
-  echo "------------- CleanupReliabilityManager 1"
   initializeLibrary()
   checkLibsdsParams(ctx, callback, userData)
 
@@ -208,7 +195,6 @@ proc CleanupReliabilityManager(
 proc ResetReliabilityManager(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
-  echo "------------- ResetReliabilityManager 1"
   initializeLibrary()
   checkLibsdsParams(ctx, callback, userData)
   handleRequest(
@@ -227,26 +213,19 @@ proc WrapOutgoingMessage(
     callback: SdsCallBack,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  echo "------------- WrapOutgoingMessage 1"
   initializeLibrary()
-  echo "------------- WrapOutgoingMessage 2"
   checkLibsdsParams(ctx, callback, userData)
-  echo "------------- WrapOutgoingMessage 3"
 
   if message == nil and messageLen > 0:
-    echo "------------- WrapOutgoingMessage 4"
     let msg = "libsds error: " & "message pointer is NULL but length > 0"
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
   if messageId == nil:
-    echo "------------- WrapOutgoingMessage 5"
     let msg = "libsds error: " & "message ID pointer is NULL"
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  echo "------------- WrapOutgoingMessage 6"
-  echo "------------- WrapOutgoingMessage messageId: ", $messageId
   handleRequest(
     ctx,
     RequestType.MESSAGE,
@@ -264,19 +243,14 @@ proc UnwrapReceivedMessage(
     callback: SdsCallBack,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  echo "------------- UnwrapReceivedMessage 1"
   initializeLibrary()
-  echo "------------- UnwrapReceivedMessage 2"
   checkLibsdsParams(ctx, callback, userData)
-  echo "------------- UnwrapReceivedMessage 3"
 
   if message == nil and messageLen > 0:
-    echo "------------- UnwrapReceivedMessage 4"
     let msg = "libsds error: " & "message pointer is NULL but length > 0"
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  echo "------------- UnwrapReceivedMessage 5"
   handleRequest(
     ctx,
     RequestType.MESSAGE,
@@ -297,14 +271,11 @@ proc MarkDependenciesMet(
   initializeLibrary()
   checkLibsdsParams(ctx, callback, userData)
 
-  echo "------------- MarkDependenciesMet 1"
   if messageIds == nil and count > 0:
-    echo "------------- MarkDependenciesMet 2"
     let msg = "libsds error: " & "MessageIDs pointer is NULL but count > 0"
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  echo "------------- MarkDependenciesMet 3"
   handleRequest(
     ctx,
     RequestType.DEPENDENCIES,
@@ -318,11 +289,8 @@ proc MarkDependenciesMet(
 proc StartPeriodicTasks(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer
 ): cint {.dynlib, exportc.} =
-  echo "------------- StartPeriodicTasks 1"
   initializeLibrary()
-  echo "------------- StartPeriodicTasks 2"
   checkLibsdsParams(ctx, callback, userData)
-  echo "------------- StartPeriodicTasks 3"
   handleRequest(
     ctx,
     RequestType.LIFECYCLE,

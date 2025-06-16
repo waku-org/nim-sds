@@ -26,33 +26,25 @@ proc runSds(ctx: ptr SdsContext) {.async.} =
   ## This is the worker body. This runs the SDS instance
   ## and attends library user requests (stop, connect_to, etc.)
 
-  echo "---------------- runSds 1"
   var rm: ReliabilityManager
 
   while true:
-    echo "---------------- runSds 2"
     await ctx.reqSignal.wait()
-    echo "---------------- runSds 3"
 
     if ctx.running.load == false:
-      echo "---------------- runSds 4"
       break
 
     ## Trying to get a request from the libsds requestor thread
     var request: ptr SdsThreadRequest
-    echo "---------------- runSds 4"
     let recvOk = ctx.reqChannel.tryRecv(request)
     if not recvOk:
-      echo "---------------- runSds 5"
       error "sds thread could not receive a request"
       continue
 
     let fireRes = ctx.reqReceivedSignal.fireSync()
-    echo "---------------- runSds 6"
     if fireRes.isErr():
       error "could not fireSync back to requester thread", error = fireRes.error
 
-    echo "---------------- runSds 7"
     ## Handle the request
     asyncSpawn SdsThreadRequest.process(request, addr rm)
 
@@ -107,7 +99,6 @@ proc sendRequestToSdsThread*(
 ): Result[void, string] =
   let req = SdsThreadRequest.createShared(reqType, reqContent, callback, userData)
 
-  echo "------------- sendRequestToSdsThread 1"
   # This lock is only necessary while we use a SP Channel and while the signalling
   # between threads assumes that there aren't concurrent requests.
   # Rearchitecting the signaling + migrating to a MP Channel will allow us to receive
@@ -118,32 +109,24 @@ proc sendRequestToSdsThread*(
   ## Sending the request
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
-    echo "------------- sendRequestToSdsThread 2"
     deallocShared(req)
     return err("Couldn't send a request to the sds thread: " & $req[])
 
   let fireSyncRes = ctx.reqSignal.fireSync()
-  echo "------------- sendRequestToSdsThread 3"
   if fireSyncRes.isErr():
-    echo "------------- sendRequestToSdsThread 4"
     deallocShared(req)
     return err("failed fireSync: " & $fireSyncRes.error)
 
-  echo "------------- sendRequestToSdsThread 5"
   if fireSyncRes.get() == false:
-    echo "------------- sendRequestToSdsThread 6"
     deallocShared(req)
     return err("Couldn't fireSync in time")
 
   ## wait until the SDS Thread properly received the request
   let res = ctx.reqReceivedSignal.waitSync()
-  echo "------------- sendRequestToSdsThread 7"
   if res.isErr():
-    echo "------------- sendRequestToSdsThread 8"
     deallocShared(req)
     return err("Couldn't receive reqReceivedSignal signal")
 
   ## Notice that in case of "ok", the deallocShared(req) is performed by the SDS Thread in the
   ## process proc.
-  echo "------------- sendRequestToSdsThread 9"
   ok()

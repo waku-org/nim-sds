@@ -26,7 +26,7 @@ typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* u
 
 void* NewReliabilityManager(const char* channelId, SdsCallBack callback, void* userData);
 
-void SetEventCallback(void* ctx, SdsCallBack callback, void* userData);
+void SdsSetEventCallback(void* ctx, SdsCallBack callback, void* userData);
 
 int CleanupReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
 
