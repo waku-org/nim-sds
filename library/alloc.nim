@@ -30,22 +30,15 @@ proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
   return (cast[ptr UncheckedArray[T]](data), s.len)
 
 proc deallocSharedSeq*[T](s: var SharedSeq[T]) =
-  echo "------------ deallocSharedSeq 1"
   if not s.data.isNil:
-    echo "------------ deallocSharedSeq 2"
     when T is cstring:
-      echo "------------ deallocSharedSeq 3"
       # For array of cstrings, deallocate each string first
       for i in 0 ..< s.len:
-        echo "------------ deallocSharedSeq 4"
         if not s.data[i].isNil:
-          echo "------------ deallocSharedSeq 5"
           # Deallocate each cstring
           deallocShared(s.data[i])
 
-    echo "------------ deallocSharedSeq 6"
     deallocShared(s.data)
-    echo "------------ deallocSharedSeq 7"
   s.len = 0
 
 proc toSeq*[T](s: SharedSeq[T]): seq[T] =
