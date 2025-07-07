@@ -12,8 +12,7 @@ proc encode*(msg: SdsMessage): ProtoBuffer =
   for hist in msg.causalHistory:
     pb.write(3, hist)
 
-  if msg.channelId.isSome():
-    pb.write(4, msg.channelId.get())
+  pb.write(4, msg.channelId)
   pb.write(5, msg.content)
   pb.write(6, msg.bloomFilter)
   pb.finish()
@@ -37,11 +36,8 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
   if histResult.isOk:
     msg.causalHistory = causalHistory
 
-  var channelId: SdsChannelID
-  if ?pb.getField(4, channelId):
-    msg.channelId = some(channelId)
-  else:
-    msg.channelId = none[SdsChannelID]()
+  if not ?pb.getField(4, msg.channelId):
+    return err(ProtobufError.missingRequiredField("channelId"))
 
   if not ?pb.getField(5, msg.content):
     return err(ProtobufError.missingRequiredField("content"))
@@ -50,6 +46,17 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
     msg.bloomFilter = @[] # Empty if not present
 
   ok(msg)
+
+proc extractChannelId*(data: seq[byte]): Result[SdsChannelID, ReliabilityError] =
+  ## For extraction of channel ID without full message deserialization
+  try:
+    let pb = initProtoBuffer(data)
+    var channelId: SdsChannelID
+    if not pb.getField(4, channelId).get():
+      return err(ReliabilityError.reDeserializationError)
+    ok(channelId)
+  except:
+    err(ReliabilityError.reDeserializationError)
 
 proc serializeMessage*(msg: SdsMessage): Result[seq[byte], ReliabilityError] =
   let pb = encode(msg)
