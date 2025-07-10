@@ -3,31 +3,18 @@ import chronos, results, chronicles
 import ./[message, protobuf, reliability_utils, rolling_bloom_filter]
 
 proc newReliabilityManager*(
-    channelId: Option[SdsChannelID], config: ReliabilityConfig = defaultConfig()
+    config: ReliabilityConfig = defaultConfig()
 ): Result[ReliabilityManager, ReliabilityError] =
-  ## Creates a new ReliabilityManager with the specified channel ID and configuration.
+  ## Creates a new multi-channel ReliabilityManager.
   ##
   ## Parameters:
-  ##   - channelId: A unique identifier for the communication channel.
   ##   - config: Configuration options for the ReliabilityManager. If not provided, default configuration is used.
   ##
   ## Returns:
   ##   A Result containing either a new ReliabilityManager instance or an error.
-  if not channelId.isSome():
-    return err(ReliabilityError.reInvalidArgument)
-
   try:
-    let bloomFilter =
-      newRollingBloomFilter(config.bloomFilterCapacity, config.bloomFilterErrorRate)
-
     let rm = ReliabilityManager(
-      lamportTimestamp: 0,
-      messageHistory: @[],
-      bloomFilter: bloomFilter,
-      outgoingBuffer: @[],
-      incomingBuffer: initTable[SdsMessageID, IncomingMessage](),
-      channelId: channelId,
-      config: config,
+      channels: initTable[SdsChannelID, ChannelContext](), config: config
     )
     initLock(rm.lock)
     return ok(rm)
@@ -73,29 +60,37 @@ proc reviewAckStatus(rm: ReliabilityManager, msg: SdsMessage) {.gcsafe.} =
   else:
     rbf = none[RollingBloomFilter]()
 
+  if msg.channelId notin rm.channels:
+    return
+
+  let channel = rm.channels[msg.channelId]
   # Keep track of indices to delete
   var toDelete: seq[int] = @[]
   var i = 0
 
-  while i < rm.outgoingBuffer.len:
-    let outMsg = rm.outgoingBuffer[i]
+  while i < channel.outgoingBuffer.len:
+    let outMsg = channel.outgoingBuffer[i]
     if outMsg.isAcknowledged(msg.causalHistory, rbf):
       if not rm.onMessageSent.isNil():
-        rm.onMessageSent(outMsg.message.messageId)
+        rm.onMessageSent(outMsg.message.messageId, outMsg.message.channelId)
       toDelete.add(i)
     inc i
 
   for i in countdown(toDelete.high, 0): # Delete in reverse order to maintain indices
-    rm.outgoingBuffer.delete(toDelete[i])
+    channel.outgoingBuffer.delete(toDelete[i])
 
 proc wrapOutgoingMessage*(
-    rm: ReliabilityManager, message: seq[byte], messageId: SdsMessageID
+    rm: ReliabilityManager,
+    message: seq[byte],
+    messageId: SdsMessageID,
+    channelId: SdsChannelID,
 ): Result[seq[byte], ReliabilityError] =
   ## Wraps an outgoing message with reliability metadata.
   ##
   ## Parameters:
   ##   - message: The content of the message to be sent.
   ##   - messageId: Unique identifier for the message
+  ##   - channelId: Identifier for the channel this message belongs to.
   ##
   ## Returns:
   ##   A Result containing either wrapped message bytes or an error.
@@ -106,46 +101,52 @@ proc wrapOutgoingMessage*(
 
   withLock rm.lock:
     try:
-      rm.updateLamportTimestamp(getTime().toUnix)
+      let channel = rm.getOrCreateChannel(channelId)
+      rm.updateLamportTimestamp(getTime().toUnix, channelId)
 
-      let bfResult = serializeBloomFilter(rm.bloomFilter.filter)
+      let bfResult = serializeBloomFilter(channel.bloomFilter.filter)
       if bfResult.isErr:
-        error "Failed to serialize bloom filter"
+        error "Failed to serialize bloom filter", channelId = channelId
         return err(ReliabilityError.reSerializationError)
 
       let msg = SdsMessage(
         messageId: messageId,
-        lamportTimestamp: rm.lamportTimestamp,
-        causalHistory: rm.getRecentSdsMessageIDs(rm.config.maxCausalHistory),
-        channelId: rm.channelId,
+        lamportTimestamp: channel.lamportTimestamp,
+        causalHistory: rm.getRecentSdsMessageIDs(rm.config.maxCausalHistory, channelId),
+        channelId: channelId,
         content: message,
         bloomFilter: bfResult.get(),
       )
 
-      # Add to outgoing buffer
-      rm.outgoingBuffer.add(
+      channel.outgoingBuffer.add(
         UnacknowledgedMessage(message: msg, sendTime: getTime(), resendAttempts: 0)
       )
 
       # Add to causal history and bloom filter
-      rm.bloomFilter.add(msg.messageId)
-      rm.addToHistory(msg.messageId)
+      channel.bloomFilter.add(msg.messageId)
+      rm.addToHistory(msg.messageId, channelId)
 
       return serializeMessage(msg)
     except Exception:
-      error "Failed to wrap message", msg = getCurrentExceptionMsg()
+      error "Failed to wrap message",
+        channelId = channelId, msg = getCurrentExceptionMsg()
       return err(ReliabilityError.reSerializationError)
 
-proc processIncomingBuffer(rm: ReliabilityManager) {.gcsafe.} =
+proc processIncomingBuffer(rm: ReliabilityManager, channelId: SdsChannelID) {.gcsafe.} =
   withLock rm.lock:
-    if rm.incomingBuffer.len == 0:
+    if channelId notin rm.channels:
+      error "Channel does not exist", channelId = channelId
+      return
+
+    let channel = rm.channels[channelId]
+    if channel.incomingBuffer.len == 0:
       return
 
     var processed = initHashSet[SdsMessageID]()
     var readyToProcess = newSeq[SdsMessageID]()
 
     # Find initially ready messages
-    for msgId, entry in rm.incomingBuffer:
+    for msgId, entry in channel.incomingBuffer:
       if entry.missingDeps.len == 0:
         readyToProcess.add(msgId)
 
@@ -154,105 +155,114 @@ proc processIncomingBuffer(rm: ReliabilityManager) {.gcsafe.} =
       if msgId in processed:
         continue
 
-      if msgId in rm.incomingBuffer:
-        rm.addToHistory(msgId)
+      if msgId in channel.incomingBuffer:
+        rm.addToHistory(msgId, channelId)
         if not rm.onMessageReady.isNil():
-          rm.onMessageReady(msgId)
+          rm.onMessageReady(msgId, channelId)
         processed.incl(msgId)
 
         # Update dependencies for remaining messages
-        for remainingId, entry in rm.incomingBuffer:
+        for remainingId, entry in channel.incomingBuffer:
           if remainingId notin processed:
             if msgId in entry.missingDeps:
-              rm.incomingBuffer[remainingId].missingDeps.excl(msgId)
-              if rm.incomingBuffer[remainingId].missingDeps.len == 0:
+              channel.incomingBuffer[remainingId].missingDeps.excl(msgId)
+              if channel.incomingBuffer[remainingId].missingDeps.len == 0:
                 readyToProcess.add(remainingId)
 
     # Remove processed messages
     for msgId in processed:
-      rm.incomingBuffer.del(msgId)
+      channel.incomingBuffer.del(msgId)
 
 proc unwrapReceivedMessage*(
     rm: ReliabilityManager, message: seq[byte]
-): Result[tuple[message: seq[byte], missingDeps: seq[SdsMessageID]], ReliabilityError] =
+): Result[
+    tuple[message: seq[byte], missingDeps: seq[SdsMessageID], channelId: SdsChannelID],
+    ReliabilityError,
+] =
   ## Unwraps a received message and processes its reliability metadata.
   ##
   ## Parameters:
   ##   - message: The received message bytes
   ##
   ## Returns:
-  ##   A Result containing either tuple of (processed message, missing dependencies) or an error.
+  ##   A Result containing either tuple of (processed message, missing dependencies, channel ID) or an error.
   try:
+    let channelId = extractChannelId(message).valueOr:
+      return err(ReliabilityError.reDeserializationError)
+
     let msg = deserializeMessage(message).valueOr:
       return err(ReliabilityError.reDeserializationError)
 
-    if msg.messageId in rm.messageHistory:
-      return ok((msg.content, @[]))
+    let channel = rm.getOrCreateChannel(channelId)
 
-    rm.bloomFilter.add(msg.messageId)
+    if msg.messageId in channel.messageHistory:
+      return ok((msg.content, @[], channelId))
 
-    # Update Lamport timestamp
-    rm.updateLamportTimestamp(msg.lamportTimestamp)
+    channel.bloomFilter.add(msg.messageId)
 
+    rm.updateLamportTimestamp(msg.lamportTimestamp, channelId)
     # Review ACK status for outgoing messages
     rm.reviewAckStatus(msg)
 
-    var missingDeps = rm.checkDependencies(msg.causalHistory)
+    var missingDeps = rm.checkDependencies(msg.causalHistory, channelId)
 
     if missingDeps.len == 0:
-      # Check if any dependencies are still in incoming buffer
       var depsInBuffer = false
-      for msgId, entry in rm.incomingBuffer.pairs():
+      for msgId, entry in channel.incomingBuffer.pairs():
         if msgId in msg.causalHistory:
           depsInBuffer = true
           break
-
+      # Check if any dependencies are still in incoming buffer
       if depsInBuffer:
-        rm.incomingBuffer[msg.messageId] =
+        channel.incomingBuffer[msg.messageId] =
           IncomingMessage(message: msg, missingDeps: initHashSet[SdsMessageID]())
       else:
         # All dependencies met, add to history
-        rm.addToHistory(msg.messageId)
-        rm.processIncomingBuffer()
+        rm.addToHistory(msg.messageId, channelId)
+        rm.processIncomingBuffer(channelId)
         if not rm.onMessageReady.isNil():
-          rm.onMessageReady(msg.messageId)
+          rm.onMessageReady(msg.messageId, channelId)
     else:
-      rm.incomingBuffer[msg.messageId] =
+      channel.incomingBuffer[msg.messageId] =
         IncomingMessage(message: msg, missingDeps: missingDeps.toHashSet())
       if not rm.onMissingDependencies.isNil():
-        rm.onMissingDependencies(msg.messageId, missingDeps)
+        rm.onMissingDependencies(msg.messageId, missingDeps, channelId)
 
-    return ok((msg.content, missingDeps))
+    return ok((msg.content, missingDeps, channelId))
   except Exception:
     error "Failed to unwrap message", msg = getCurrentExceptionMsg()
     return err(ReliabilityError.reDeserializationError)
 
 proc markDependenciesMet*(
-    rm: ReliabilityManager, messageIds: seq[SdsMessageID]
+    rm: ReliabilityManager, messageIds: seq[SdsMessageID], channelId: SdsChannelID
 ): Result[void, ReliabilityError] =
   ## Marks the specified message dependencies as met.
   ##
   ## Parameters:
   ##   - messageIds: A sequence of message IDs to mark as met.
+  ##   - channelId: Identifier for the channel.
   ##
   ## Returns:
   ##   A Result indicating success or an error.
   try:
-    # Add all messageIds to bloom filter
+    if channelId notin rm.channels:
+      return err(ReliabilityError.reInvalidArgument)
+
+    let channel = rm.channels[channelId]
+
     for msgId in messageIds:
-      if not rm.bloomFilter.contains(msgId):
-        rm.bloomFilter.add(msgId)
-        # rm.addToHistory(msgId) -- not needed as this proc usually called when msg in long-term storage of application?
+      if not channel.bloomFilter.contains(msgId):
+        channel.bloomFilter.add(msgId)
 
-      # Update any pending messages that depend on this one
-      for pendingId, entry in rm.incomingBuffer:
+      for pendingId, entry in channel.incomingBuffer:
         if msgId in entry.missingDeps:
-          rm.incomingBuffer[pendingId].missingDeps.excl(msgId)
+          channel.incomingBuffer[pendingId].missingDeps.excl(msgId)
 
-    rm.processIncomingBuffer()
+    rm.processIncomingBuffer(channelId)
     return ok()
   except Exception:
-    error "Failed to mark dependencies as met", msg = getCurrentExceptionMsg()
+    error "Failed to mark dependencies as met",
+      channelId = channelId, msg = getCurrentExceptionMsg()
     return err(ReliabilityError.reInternalError)
 
 proc setCallbacks*(
@@ -275,16 +285,22 @@ proc setCallbacks*(
     rm.onMissingDependencies = onMissingDependencies
     rm.onPeriodicSync = onPeriodicSync
 
-proc checkUnacknowledgedMessages(rm: ReliabilityManager) {.gcsafe.} =
+proc checkUnacknowledgedMessages(
+    rm: ReliabilityManager, channelId: SdsChannelID
+) {.gcsafe.} =
   ## Checks and processes unacknowledged messages in the outgoing buffer.
   withLock rm.lock:
+    if channelId notin rm.channels:
+      error "Channel does not exist", channelId = channelId
+      return
+
+    let channel = rm.channels[channelId]
     let now = getTime()
     var newOutgoingBuffer: seq[UnacknowledgedMessage] = @[]
 
-    for unackMsg in rm.outgoingBuffer:
+    for unackMsg in channel.outgoingBuffer:
       let elapsed = now - unackMsg.sendTime
       if elapsed > rm.config.resendInterval:
-        # Time to attempt resend
         if unackMsg.resendAttempts < rm.config.maxResendAttempts:
           var updatedMsg = unackMsg
           updatedMsg.resendAttempts += 1
@@ -292,11 +308,11 @@ proc checkUnacknowledgedMessages(rm: ReliabilityManager) {.gcsafe.} =
           newOutgoingBuffer.add(updatedMsg)
         else:
           if not rm.onMessageSent.isNil():
-            rm.onMessageSent(unackMsg.message.messageId)
+            rm.onMessageSent(unackMsg.message.messageId, channelId)
       else:
         newOutgoingBuffer.add(unackMsg)
 
-    rm.outgoingBuffer = newOutgoingBuffer
+    channel.outgoingBuffer = newOutgoingBuffer
 
 proc periodicBufferSweep(
     rm: ReliabilityManager
@@ -304,8 +320,13 @@ proc periodicBufferSweep(
   ## Periodically sweeps the buffer to clean up and check unacknowledged messages.
   while true:
     try:
-      rm.checkUnacknowledgedMessages()
-      rm.cleanBloomFilter()
+      for channelId, channel in rm.channels:
+        try:
+          rm.checkUnacknowledgedMessages(channelId)
+          rm.cleanBloomFilter(channelId)
+        except Exception:
+          error "Error in buffer sweep for channel",
+            channelId = channelId, msg = getCurrentExceptionMsg()
     except Exception:
       error "Error in periodic buffer sweep", msg = getCurrentExceptionMsg()
 
@@ -336,13 +357,15 @@ proc resetReliabilityManager*(rm: ReliabilityManager): Result[void, ReliabilityE
   ## This procedure clears all buffers and resets the Lamport timestamp.
   withLock rm.lock:
     try:
-      rm.lamportTimestamp = 0
-      rm.messageHistory.setLen(0)
-      rm.outgoingBuffer.setLen(0)
-      rm.incomingBuffer.clear()
-      rm.bloomFilter = newRollingBloomFilter(
-        rm.config.bloomFilterCapacity, rm.config.bloomFilterErrorRate
-      )
+      for channelId, channel in rm.channels:
+        channel.lamportTimestamp = 0
+        channel.messageHistory.setLen(0)
+        channel.outgoingBuffer.setLen(0)
+        channel.incomingBuffer.clear()
+        channel.bloomFilter = newRollingBloomFilter(
+          rm.config.bloomFilterCapacity, rm.config.bloomFilterErrorRate
+        )
+      rm.channels.clear()
       return ok()
     except Exception:
       error "Failed to reset ReliabilityManager", msg = getCurrentExceptionMsg()

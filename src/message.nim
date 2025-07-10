@@ -1,4 +1,4 @@
-import std/[times, options, sets]
+import std/[times, sets]
 
 type
   SdsMessageID* = string
@@ -8,7 +8,7 @@ type
     messageId*: SdsMessageID
     lamportTimestamp*: int64
     causalHistory*: seq[SdsMessageID]
-    channelId*: Option[SdsChannelID]
+    channelId*: SdsChannelID
     content*: seq[byte]
     bloomFilter*: seq[byte]
 
