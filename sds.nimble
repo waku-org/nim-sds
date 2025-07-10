@@ -1,21 +1,15 @@
 mode = ScriptMode.Verbose
 
 # Package
-version       = "0.1.0"
-author        = "Waku Team"
-description   = "E2E Reliability Protocol API"
-license       = "MIT"
-srcDir        = "src"
+version = "0.1.0"
+author = "Waku Team"
+description = "E2E Reliability Protocol API"
+license = "MIT"
+srcDir = "src"
 
 # Dependencies
 requires "nim >= 2.2.4",
-  "chronicles",
-  "chronos",
-  "stew",
-  "stint",
-  "metrics",
-  "libp2p",
-  "results"
+  "chronicles", "chronos", "stew", "stint", "metrics", "libp2p", "results"
 
 proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
   if not dirExists "build":
