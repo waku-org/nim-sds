@@ -3,12 +3,15 @@ import chronicles, results
 import ./[rolling_bloom_filter, message]
 
 type
-  MessageReadyCallback* = proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
+  MessageReadyCallback* =
+    proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
 
-  MessageSentCallback* = proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
+  MessageSentCallback* =
+    proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
 
-  MissingDependenciesCallback* =
-    proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.}
+  MissingDependenciesCallback* = proc(
+    messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
+  ) {.gcsafe.}
 
   PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
 
@@ -41,8 +44,9 @@ type
     lock*: Lock
     onMessageReady*: proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
     onMessageSent*: proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
-    onMissingDependencies*:
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.}
+    onMissingDependencies*: proc(
+      messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
+    ) {.gcsafe.}
     onPeriodicSync*: PeriodicSyncCallback
 
   ReliabilityError* {.pure.} = enum
@@ -81,15 +85,20 @@ proc cleanup*(rm: ReliabilityManager) {.raises: [].} =
     except Exception:
       error "Error during cleanup", error = getCurrentExceptionMsg()
 
-proc cleanBloomFilter*(rm: ReliabilityManager, channelId: SdsChannelID) {.gcsafe, raises: [].} =
+proc cleanBloomFilter*(
+    rm: ReliabilityManager, channelId: SdsChannelID
+) {.gcsafe, raises: [].} =
   withLock rm.lock:
     try:
       if channelId in rm.channels:
         rm.channels[channelId].bloomFilter.clean()
     except Exception:
-      error "Failed to clean bloom filter", error = getCurrentExceptionMsg(), channelId = channelId
+      error "Failed to clean bloom filter",
+        error = getCurrentExceptionMsg(), channelId = channelId
 
-proc addToHistory*(rm: ReliabilityManager, msgId: SdsMessageID, channelId: SdsChannelID) {.gcsafe, raises: [].} =
+proc addToHistory*(
+    rm: ReliabilityManager, msgId: SdsMessageID, channelId: SdsChannelID
+) {.gcsafe, raises: [].} =
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
@@ -97,7 +106,8 @@ proc addToHistory*(rm: ReliabilityManager, msgId: SdsMessageID, channelId: SdsCh
       if channel.messageHistory.len > rm.config.maxMessageHistory:
         channel.messageHistory.delete(0)
   except Exception:
-    error "Failed to add to history", channelId = channelId, msgId = msgId, error = getCurrentExceptionMsg()
+    error "Failed to add to history",
+      channelId = channelId, msgId = msgId, error = getCurrentExceptionMsg()
 
 proc updateLamportTimestamp*(
     rm: ReliabilityManager, msgTs: int64, channelId: SdsChannelID
@@ -107,9 +117,12 @@ proc updateLamportTimestamp*(
       let channel = rm.channels[channelId]
       channel.lamportTimestamp = max(msgTs, channel.lamportTimestamp) + 1
   except Exception:
-    error "Failed to update lamport timestamp", channelId = channelId, msgTs = msgTs, error = getCurrentExceptionMsg()
+    error "Failed to update lamport timestamp",
+      channelId = channelId, msgTs = msgTs, error = getCurrentExceptionMsg()
 
-proc getRecentSdsMessageIDs*(rm: ReliabilityManager, n: int, channelId: SdsChannelID): seq[SdsMessageID] =
+proc getRecentSdsMessageIDs*(
+    rm: ReliabilityManager, n: int, channelId: SdsChannelID
+): seq[SdsMessageID] =
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
@@ -117,7 +130,8 @@ proc getRecentSdsMessageIDs*(rm: ReliabilityManager, n: int, channelId: SdsChann
     else:
       result = @[]
   except Exception:
-    error "Failed to get recent message IDs", channelId = channelId, n = n, error = getCurrentExceptionMsg()
+    error "Failed to get recent message IDs",
+      channelId = channelId, n = n, error = getCurrentExceptionMsg()
     result = @[]
 
 proc checkDependencies*(
@@ -133,11 +147,14 @@ proc checkDependencies*(
     else:
       missingDeps = deps
   except Exception:
-    error "Failed to check dependencies", channelId = channelId, error = getCurrentExceptionMsg()
+    error "Failed to check dependencies",
+      channelId = channelId, error = getCurrentExceptionMsg()
     missingDeps = deps
   return missingDeps
 
-proc getMessageHistory*(rm: ReliabilityManager, channelId: SdsChannelID): seq[SdsMessageID] =
+proc getMessageHistory*(
+    rm: ReliabilityManager, channelId: SdsChannelID
+): seq[SdsMessageID] =
   withLock rm.lock:
     try:
       if channelId in rm.channels:
@@ -145,10 +162,13 @@ proc getMessageHistory*(rm: ReliabilityManager, channelId: SdsChannelID): seq[Sd
       else:
         result = @[]
     except Exception:
-      error "Failed to get message history", channelId = channelId, error = getCurrentExceptionMsg()
+      error "Failed to get message history",
+        channelId = channelId, error = getCurrentExceptionMsg()
       result = @[]
 
-proc getOutgoingBuffer*(rm: ReliabilityManager, channelId: SdsChannelID): seq[UnacknowledgedMessage] =
+proc getOutgoingBuffer*(
+    rm: ReliabilityManager, channelId: SdsChannelID
+): seq[UnacknowledgedMessage] =
   withLock rm.lock:
     try:
       if channelId in rm.channels:
@@ -156,7 +176,8 @@ proc getOutgoingBuffer*(rm: ReliabilityManager, channelId: SdsChannelID): seq[Un
       else:
         result = @[]
     except Exception:
-      error "Failed to get outgoing buffer", channelId = channelId, error = getCurrentExceptionMsg()
+      error "Failed to get outgoing buffer",
+        channelId = channelId, error = getCurrentExceptionMsg()
       result = @[]
 
 proc getIncomingBuffer*(
@@ -169,34 +190,45 @@ proc getIncomingBuffer*(
       else:
         result = initTable[SdsMessageID, message.IncomingMessage]()
     except Exception:
-      error "Failed to get incoming buffer", channelId = channelId, error = getCurrentExceptionMsg()
+      error "Failed to get incoming buffer",
+        channelId = channelId, error = getCurrentExceptionMsg()
       result = initTable[SdsMessageID, message.IncomingMessage]()
 
-proc getOrCreateChannel*(rm: ReliabilityManager, channelId: SdsChannelID): ChannelContext =
+proc getOrCreateChannel*(
+    rm: ReliabilityManager, channelId: SdsChannelID
+): ChannelContext =
   try:
     if channelId notin rm.channels:
       rm.channels[channelId] = ChannelContext(
         lamportTimestamp: 0,
         messageHistory: @[],
-        bloomFilter: newRollingBloomFilter(rm.config.bloomFilterCapacity, rm.config.bloomFilterErrorRate),
+        bloomFilter: newRollingBloomFilter(
+          rm.config.bloomFilterCapacity, rm.config.bloomFilterErrorRate
+        ),
         outgoingBuffer: @[],
-        incomingBuffer: initTable[SdsMessageID, IncomingMessage]()
+        incomingBuffer: initTable[SdsMessageID, IncomingMessage](),
       )
     result = rm.channels[channelId]
   except Exception:
-    error "Failed to get or create channel", channelId = channelId, error = getCurrentExceptionMsg()
+    error "Failed to get or create channel",
+      channelId = channelId, error = getCurrentExceptionMsg()
     raise
 
-proc ensureChannel*(rm: ReliabilityManager, channelId: SdsChannelID): Result[void, ReliabilityError] =
+proc ensureChannel*(
+    rm: ReliabilityManager, channelId: SdsChannelID
+): Result[void, ReliabilityError] =
   withLock rm.lock:
     try:
       discard rm.getOrCreateChannel(channelId)
       return ok()
     except Exception:
-      error "Failed to ensure channel", channelId = channelId, msg = getCurrentExceptionMsg()
+      error "Failed to ensure channel",
+        channelId = channelId, msg = getCurrentExceptionMsg()
       return err(ReliabilityError.reInternalError)
 
-proc removeChannel*(rm: ReliabilityManager, channelId: SdsChannelID): Result[void, ReliabilityError] =
+proc removeChannel*(
+    rm: ReliabilityManager, channelId: SdsChannelID
+): Result[void, ReliabilityError] =
   withLock rm.lock:
     try:
       if channelId in rm.channels:
@@ -207,5 +239,6 @@ proc removeChannel*(rm: ReliabilityManager, channelId: SdsChannelID): Result[voi
         rm.channels.del(channelId)
       return ok()
     except Exception:
-      error "Failed to remove channel", channelId = channelId, msg = getCurrentExceptionMsg()
+      error "Failed to remove channel",
+        channelId = channelId, msg = getCurrentExceptionMsg()
       return err(ReliabilityError.reInternalError)
