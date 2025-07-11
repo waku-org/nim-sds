@@ -24,7 +24,7 @@ typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* u
 // --- Core API Functions ---
 
 
-void* SdsNewReliabilityManager(const char* channelId, SdsCallBack callback, void* userData);
+void* SdsNewReliabilityManager(SdsCallBack callback, void* userData);
 
 void SdsSetEventCallback(void* ctx, SdsCallBack callback, void* userData);
 
@@ -36,6 +36,7 @@ int SdsWrapOutgoingMessage(void* ctx,
                     void* message,
                     size_t messageLen,
                     const char* messageId,
+                    const char* channelId,
                     SdsCallBack callback,
                     void* userData);
 
@@ -48,6 +49,7 @@ int SdsUnwrapReceivedMessage(void* ctx,
 int SdsMarkDependenciesMet(void* ctx, 
                     char** messageIDs, 
                     size_t count, 
+                    const char* channelId,
                     SdsCallBack callback,
                     void* userData);
 

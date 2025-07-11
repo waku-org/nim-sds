@@ -1,8 +1,8 @@
-import std/[options, json, strutils, net]
-import chronos, chronicles, results, confutils, confutils/std/net
+import std/json
+import chronos, chronicles, results
 
 import ../../../alloc
-import ../../../../src/[reliability_utils, reliability, message]
+import ../../../../src/[reliability_utils, reliability]
 
 type SdsLifecycleMsgType* = enum
   CREATE_RELIABILITY_MANAGER
@@ -31,14 +31,9 @@ proc destroyShared(self: ptr SdsLifecycleRequest) =
   deallocShared(self)
 
 proc createReliabilityManager(
-    channelIdCStr: cstring, appCallbacks: AppCallbacks = nil
+    appCallbacks: AppCallbacks = nil
 ): Future[Result[ReliabilityManager, string]] {.async.} =
-  let channelId = $channelIdCStr
-  if channelId.len == 0:
-    error "Failed creating ReliabilityManager: Channel ID cannot be empty"
-    return err("Failed creating ReliabilityManager: Channel ID cannot be empty")
-
-  let rm = newReliabilityManager(some(channelId)).valueOr:
+  let rm = newReliabilityManager().valueOr:
     error "Failed creating reliability manager", error = error
     return err("Failed creating reliability manager: " & $error)
 
@@ -57,7 +52,7 @@ proc process*(
 
   case self.operation
   of CREATE_RELIABILITY_MANAGER:
-    rm[] = (await createReliabilityManager(self.channelId, self.appCallbacks)).valueOr:
+    rm[] = (await createReliabilityManager(self.appCallbacks)).valueOr:
       error "CREATE_RELIABILITY_MANAGER failed", error = error
       return err("error processing CREATE_RELIABILITY_MANAGER request: " & $error)
   of RESET_RELIABILITY_MANAGER:
