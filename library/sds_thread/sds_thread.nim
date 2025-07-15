@@ -41,12 +41,12 @@ proc runSds(ctx: ptr SdsContext) {.async.} =
       error "sds thread could not receive a request"
       continue
 
+    ## Handle the request
+    asyncSpawn SdsThreadRequest.process(request, addr rm)
+
     let fireRes = ctx.reqReceivedSignal.fireSync()
     if fireRes.isErr():
       error "could not fireSync back to requester thread", error = fireRes.error
-
-    ## Handle the request
-    asyncSpawn SdsThreadRequest.process(request, addr rm)
 
 proc run(ctx: ptr SdsContext) {.thread.} =
   ## Launch sds worker
