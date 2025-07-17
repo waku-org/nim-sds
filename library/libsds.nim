@@ -5,7 +5,7 @@
 when defined(linux):
   {.passl: "-Wl,-soname,libsds.so".}
 
-import std/[locks, typetraits, tables, atomics], chronos, chronicles
+import std/[typetraits, tables, atomics], chronos, chronicles
 import
   ./sds_thread/sds_thread,
   ./alloc,
@@ -13,7 +13,7 @@ import
   ./sds_thread/inter_thread_communication/sds_thread_request,
   ./sds_thread/inter_thread_communication/requests/
     [sds_lifecycle_request, sds_message_request, sds_dependencies_request],
-  ../src/[reliability, reliability_utils, message],
+  ../src/[reliability_utils, message],
   ./events/[
     json_message_ready_event, json_message_sent_event, json_missing_dependencies_event,
     json_periodic_sync_event,
@@ -72,19 +72,19 @@ proc handleRequest(
   return RET_OK
 
 proc onMessageReady(ctx: ptr SdsContext): MessageReadyCallback =
-  return proc(messageId: SdsMessageID) {.gcsafe.} =
+  return proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
     callEventCallback(ctx, "onMessageReady"):
-      $JsonMessageReadyEvent.new(messageId)
+      $JsonMessageReadyEvent.new(messageId, channelId)
 
 proc onMessageSent(ctx: ptr SdsContext): MessageSentCallback =
-  return proc(messageId: SdsMessageID) {.gcsafe.} =
+  return proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
     callEventCallback(ctx, "onMessageSent"):
-      $JsonMessageSentEvent.new(messageId)
+      $JsonMessageSentEvent.new(messageId, channelId)
 
 proc onMissingDependencies(ctx: ptr SdsContext): MissingDependenciesCallback =
-  return proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID]) {.gcsafe.} =
+  return proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
     callEventCallback(ctx, "onMissingDependencies"):
-      $JsonMissingDependenciesEvent.new(messageId, missingDeps)
+      $JsonMissingDependenciesEvent.new(messageId, missingDeps, channelId)
 
 proc onPeriodicSync(ctx: ptr SdsContext): PeriodicSyncCallback =
   return proc() {.gcsafe.} =
@@ -131,7 +131,7 @@ proc initializeLibrary() {.exported.} =
 ### Exported procs
 
 proc SdsNewReliabilityManager(
-    channelId: cstring, callback: SdsCallBack, userData: pointer
+    callback: SdsCallBack, userData: pointer
 ): pointer {.dynlib, exportc, cdecl.} =
   initializeLibrary()
 
@@ -159,7 +159,7 @@ proc SdsNewReliabilityManager(
     ctx,
     RequestType.LIFECYCLE,
     SdsLifecycleRequest.createShared(
-      SdsLifecycleMsgType.CREATE_RELIABILITY_MANAGER, channelId, appCallbacks
+      SdsLifecycleMsgType.CREATE_RELIABILITY_MANAGER, nil, appCallbacks
     ),
     callback,
     userData,
@@ -211,6 +211,7 @@ proc SdsWrapOutgoingMessage(
     message: pointer,
     messageLen: csize_t,
     messageId: cstring,
+    channelId: cstring,
     callback: SdsCallBack,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
@@ -227,11 +228,21 @@ proc SdsWrapOutgoingMessage(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
+  if channelId == nil:
+    let msg = "libsds error: " & "channel ID pointer is NULL"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  if channelId != nil and $channelId == "":
+    let msg = "libsds error: " & "channel ID is empty string"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
   handleRequest(
     ctx,
     RequestType.MESSAGE,
     SdsMessageRequest.createShared(
-      SdsMessageMsgType.WRAP_MESSAGE, message, messageLen, messageId
+      SdsMessageMsgType.WRAP_MESSAGE, message, messageLen, messageId, channelId
     ),
     callback,
     userData,
@@ -266,6 +277,7 @@ proc SdsMarkDependenciesMet(
     ctx: ptr SdsContext,
     messageIds: pointer,
     count: csize_t,
+    channelId: cstring,
     callback: SdsCallBack,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
@@ -277,11 +289,21 @@ proc SdsMarkDependenciesMet(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
+  if channelId == nil:
+    let msg = "libsds error: " & "channel ID pointer is NULL"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  if channelId != nil and $channelId == "":
+    let msg = "libsds error: " & "channel ID is empty string"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
   handleRequest(
     ctx,
     RequestType.DEPENDENCIES,
     SdsDependenciesRequest.createShared(
-      SdsDependenciesMsgType.MARK_DEPENDENCIES_MET, messageIds, count
+      SdsDependenciesMsgType.MARK_DEPENDENCIES_MET, messageIds, count, channelId
     ),
     callback,
     userData,
