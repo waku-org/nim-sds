@@ -233,6 +233,11 @@ proc SdsWrapOutgoingMessage(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
+  if channelId != nil and $channelId == "":
+    let msg = "libsds error: " & "channel ID is empty string"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
   handleRequest(
     ctx,
     RequestType.MESSAGE,
@@ -286,6 +291,11 @@ proc SdsMarkDependenciesMet(
 
   if channelId == nil:
     let msg = "libsds error: " & "channel ID pointer is NULL"
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  if channelId != nil and $channelId == "":
+    let msg = "libsds error: " & "channel ID is empty string"
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
