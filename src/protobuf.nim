@@ -9,8 +9,13 @@ proc encode*(msg: SdsMessage): ProtoBuffer =
   pb.write(1, msg.messageId)
   pb.write(2, uint64(msg.lamportTimestamp))
 
-  for hist in msg.causalHistory:
-    pb.write(3, hist)
+  for entry in msg.causalHistory:
+    var entryPb = initProtoBuffer()
+    entryPb.write(1, entry.messageId)
+    if entry.retrievalHint.len > 0:
+      entryPb.write(2, entry.retrievalHint)
+    entryPb.finish()
+    pb.write(3, entryPb.buffer)
 
   pb.write(4, msg.channelId)
   pb.write(5, msg.content)
@@ -31,10 +36,24 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
     return err(ProtobufError.missingRequiredField("lamportTimestamp"))
   msg.lamportTimestamp = int64(timestamp)
 
-  var causalHistory: seq[SdsMessageID]
-  let histResult = pb.getRepeatedField(3, causalHistory)
-  if histResult.isOk:
-    msg.causalHistory = causalHistory
+  # Handle both old and new causal history formats
+  var historyBuffers: seq[seq[byte]]
+  if pb.getRepeatedField(3, historyBuffers).isOk:
+    # New format: repeated HistoryEntry
+    for histBuffer in historyBuffers:
+      let entryPb = initProtoBuffer(histBuffer)
+      var entry: HistoryEntry
+      if not ?entryPb.getField(1, entry.messageId):
+        return err(ProtobufError.missingRequiredField("HistoryEntry.messageId"))
+      # retrievalHint is optional
+      discard entryPb.getField(2, entry.retrievalHint)
+      msg.causalHistory.add(entry)
+  else:
+    # Try old format: repeated string
+    var causalHistory: seq[SdsMessageID]
+    let histResult = pb.getRepeatedField(3, causalHistory)
+    if histResult.isOk:
+      msg.causalHistory = toCausalHistory(causalHistory)
 
   if not ?pb.getField(4, msg.channelId):
     return err(ProtobufError.missingRequiredField("channelId"))

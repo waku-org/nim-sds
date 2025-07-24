@@ -65,7 +65,7 @@ proc process*(
       error "UNWRAP_MESSAGE failed", error = error
       return err("error processing UNWRAP_MESSAGE request: " & $error)
 
-    let res = SdsUnwrapResponse(message: unwrappedMessage, missingDeps: missingDeps)
+    let res = SdsUnwrapResponse(message: unwrappedMessage, missingDeps: missingDeps.getMessageIds())
 
     # return the result as a json string
     return ok($(%*(res)))
