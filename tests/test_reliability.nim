@@ -112,7 +112,7 @@ suite "Reliability Mechanisms":
     let msg2 = SdsMessage(
       messageId: id2,
       lamportTimestamp: 2,
-      causalHistory: @[id1], # msg2 depends on msg1
+      causalHistory: toCausalHistory(@[id1]), # msg2 depends on msg1
       channelId: testChannel,
       content: @[byte(2)],
       bloomFilter: @[],
@@ -121,7 +121,7 @@ suite "Reliability Mechanisms":
     let msg3 = SdsMessage(
       messageId: id3,
       lamportTimestamp: 3,
-      causalHistory: @[id1, id2], # msg3 depends on both msg1 and msg2
+      causalHistory: toCausalHistory(@[id1, id2]), # msg3 depends on both msg1 and msg2
       channelId: testChannel,
       content: @[byte(3)],
       bloomFilter: @[],
@@ -141,8 +141,8 @@ suite "Reliability Mechanisms":
     check:
       missingDepsCount == 1 # Should trigger missing deps callback
       missingDeps3.len == 2 # Should be missing both msg1 and msg2
-      id1 in missingDeps3
-      id2 in missingDeps3
+      id1 in missingDeps3.getMessageIds()
+      id2 in missingDeps3.getMessageIds()
 
     # Then try processing msg2 (which only depends on msg1)
     let unwrapResult2 = rm.unwrapReceivedMessage(serialized2.get())
@@ -152,7 +152,7 @@ suite "Reliability Mechanisms":
     check:
       missingDepsCount == 2 # Should have triggered another missing deps callback
       missingDeps2.len == 1 # Should only be missing msg1
-      id1 in missingDeps2
+      id1 in missingDeps2.getMessageIds()
       messageReadyCount == 0 # No messages should be ready yet
 
     # Mark first dependency (msg1) as met
@@ -190,7 +190,7 @@ suite "Reliability Mechanisms":
     let msg2 = SdsMessage(
       messageId: "msg2",
       lamportTimestamp: rm.channels[testChannel].lamportTimestamp + 1,
-      causalHistory: @[id1], # Include our message in causal history
+      causalHistory: toCausalHistory(@[id1]), # Include our message in causal history
       channelId: testChannel,
       content: @[byte(2)],
       bloomFilter: @[] # Test with an empty bloom filter
@@ -251,6 +251,59 @@ suite "Reliability Mechanisms":
 
     check messageSentCount == 1 # Our message should be acknowledged via bloom filter
 
+  test "retrieval hints":
+    var messageReadyCount = 0
+    var messageSentCount = 0
+    var missingDepsCount = 0
+
+    rm.setCallbacks(
+      proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
+        messageReadyCount += 1,
+      proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
+        messageSentCount += 1,
+      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+        missingDepsCount += 1,
+      nil,
+      proc(messageId: SdsMessageID): seq[byte] =
+        return cast[seq[byte]]("hint:" & messageId)
+    )
+
+    # Send a first message to populate history
+    let msg1 = @[byte(1)]
+    let id1 = "msg1"
+    let wrap1 = rm.wrapOutgoingMessage(msg1, id1, testChannel)
+    check wrap1.isOk()
+
+    # Send a second message, which should have the first in its causal history
+    let msg2 = @[byte(2)]
+    let id2 = "msg2"
+    let wrap2 = rm.wrapOutgoingMessage(msg2, id2, testChannel)
+    check wrap2.isOk()
+
+    # Check that the wrapped message contains the hint
+    let unwrappedMsg2 = deserializeMessage(wrap2.get()).get()
+    check unwrappedMsg2.causalHistory.len > 0
+    check unwrappedMsg2.causalHistory[0].messageId == id1
+    check unwrappedMsg2.causalHistory[0].retrievalHint == cast[seq[byte]]("hint:" & id1)
+
+    # Create a message with a missing dependency
+    let msg3 = SdsMessage(
+      messageId: "msg3",
+      lamportTimestamp: 3,
+      causalHistory: toCausalHistory(@["missing-dep"]),
+      channelId: testChannel,
+      content: @[byte(3)],
+      bloomFilter: @[],
+    )
+    let serialized3 = serializeMessage(msg3).get()
+    let unwrapResult3 = rm.unwrapReceivedMessage(serialized3)
+    check unwrapResult3.isOk()
+    let (_, missingDeps3, _) = unwrapResult3.get()
+    check missingDeps3.len == 1
+    check missingDeps3[0].messageId == "missing-dep"
+    # The hint is empty because it was not in our history, so the provider was not called
+    check missingDeps3[0].retrievalHint.len == 0
+
 # Periodic task & Buffer management tests
 suite "Periodic Tasks & Buffer Management":
   var rm: ReliabilityManager
@@ -291,7 +344,7 @@ suite "Periodic Tasks & Buffer Management":
     let ackMsg = SdsMessage(
       messageId: "ack1",
       lamportTimestamp: rm.channels[testChannel].lamportTimestamp + 1,
-      causalHistory: @["msg0", "msg2", "msg4"],
+      causalHistory: toCausalHistory(@["msg0", "msg2", "msg4"]),
       channelId: testChannel,
       content: @[byte(100)],
       bloomFilter: @[],
@@ -420,7 +473,7 @@ suite "Special Cases Handling":
     let msgInvalid = SdsMessage(
       messageId: "invalid-bf",
       lamportTimestamp: 1,
-      causalHistory: @[],
+      causalHistory: toCausalHistory(@[]),
       channelId: testChannel,
       content: @[byte(1)],
       bloomFilter: @[1.byte, 2.byte, 3.byte] # Invalid filter data
@@ -451,7 +504,7 @@ suite "Special Cases Handling":
     let msg = SdsMessage(
       messageId: "dup-msg",
       lamportTimestamp: 1,
-      causalHistory: @[],
+      causalHistory: toCausalHistory(@[]),
       channelId: testChannel,
       content: @[byte(1)],
       bloomFilter: @[],
@@ -624,7 +677,7 @@ suite "Multi-Channel ReliabilityManager Tests":
     let ackMsg1 = SdsMessage(
       messageId: "ack1",
       lamportTimestamp: rm.channels[channel1].lamportTimestamp + 1,
-      causalHistory: @[msgId1], # Acknowledge msg1
+      causalHistory: toCausalHistory(@[msgId1]), # Acknowledge msg1
       channelId: channel1,
       content: @[byte(100)],
       bloomFilter: @[],
@@ -633,7 +686,7 @@ suite "Multi-Channel ReliabilityManager Tests":
     let ackMsg2 = SdsMessage(
       messageId: "ack2",
       lamportTimestamp: rm.channels[channel2].lamportTimestamp + 1,
-      causalHistory: @[msgId2], # Acknowledge msg2
+      causalHistory: toCausalHistory(@[msgId2]), # Acknowledge msg2
       channelId: channel2,
       content: @[byte(101)],
       bloomFilter: @[],

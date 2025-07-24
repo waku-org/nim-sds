@@ -13,6 +13,8 @@ type
     messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
   ) {.gcsafe.}
 
+  RetrievalHintProvider* = proc(messageId: SdsMessageID): seq[byte] {.gcsafe.}
+
   PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
 
   AppCallbacks* = ref object
@@ -20,6 +22,7 @@ type
     messageSentCb*: MessageSentCallback
     missingDependenciesCb*: MissingDependenciesCallback
     periodicSyncCb*: PeriodicSyncCallback
+    retrievalHintProvider*: RetrievalHintProvider
 
   ReliabilityConfig* = object
     bloomFilterCapacity*: int
@@ -48,6 +51,7 @@ type
       messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
     ) {.gcsafe.}
     onPeriodicSync*: PeriodicSyncCallback
+    onRetrievalHint*: RetrievalHintProvider
 
   ReliabilityError* {.pure.} = enum
     reInvalidArgument
@@ -120,30 +124,36 @@ proc updateLamportTimestamp*(
     error "Failed to update lamport timestamp",
       channelId = channelId, msgTs = msgTs, error = getCurrentExceptionMsg()
 
-proc getRecentSdsMessageIDs*(
+proc getRecentHistoryEntries*(
     rm: ReliabilityManager, n: int, channelId: SdsChannelID
-): seq[SdsMessageID] =
+): seq[HistoryEntry] =
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
-      result = channel.messageHistory[max(0, channel.messageHistory.len - n) .. ^1]
+      let recentMessageIds = channel.messageHistory[max(0, channel.messageHistory.len - n) .. ^1]
+      if rm.onRetrievalHint.isNil():
+        return toCausalHistory(recentMessageIds)
+      else:
+        for msgId in recentMessageIds:
+          let hint = rm.onRetrievalHint(msgId)
+          result.add(newHistoryEntry(msgId, hint))
     else:
       result = @[]
   except Exception:
-    error "Failed to get recent message IDs",
+    error "Failed to get recent history entries",
       channelId = channelId, n = n, error = getCurrentExceptionMsg()
     result = @[]
 
 proc checkDependencies*(
-    rm: ReliabilityManager, deps: seq[SdsMessageID], channelId: SdsChannelID
-): seq[SdsMessageID] =
-  var missingDeps: seq[SdsMessageID] = @[]
+    rm: ReliabilityManager, deps: seq[HistoryEntry], channelId: SdsChannelID
+): seq[HistoryEntry] =
+  var missingDeps: seq[HistoryEntry] = @[]
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
-      for depId in deps:
-        if depId notin channel.messageHistory:
-          missingDeps.add(depId)
+      for dep in deps:
+        if dep.messageId notin channel.messageHistory:
+          missingDeps.add(dep)
     else:
       missingDeps = deps
   except Exception:

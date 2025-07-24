@@ -20,6 +20,8 @@ type SdsContext* = object
   userData*: pointer
   eventCallback*: pointer
   eventUserdata*: pointer
+  retrievalHintProvider*: pointer
+  retrievalHintUserData*: pointer
   running: Atomic[bool] # To control when the thread is running
 
 proc runSds(ctx: ptr SdsContext) {.async.} =

@@ -24,10 +24,10 @@ proc newReliabilityManager*(
 
 proc isAcknowledged*(
     msg: UnacknowledgedMessage,
-    causalHistory: seq[SdsMessageID],
+    causalHistory: seq[HistoryEntry],
     rbf: Option[RollingBloomFilter],
 ): bool =
-  if msg.message.messageId in causalHistory:
+  if msg.message.messageId in causalHistory.getMessageIds():
     return true
 
   if rbf.isSome():
@@ -112,7 +112,7 @@ proc wrapOutgoingMessage*(
       let msg = SdsMessage(
         messageId: messageId,
         lamportTimestamp: channel.lamportTimestamp,
-        causalHistory: rm.getRecentSdsMessageIDs(rm.config.maxCausalHistory, channelId),
+        causalHistory: rm.getRecentHistoryEntries(rm.config.maxCausalHistory, channelId),
         channelId: channelId,
         content: message,
         bloomFilter: bfResult.get(),
@@ -176,7 +176,7 @@ proc processIncomingBuffer(rm: ReliabilityManager, channelId: SdsChannelID) {.gc
 proc unwrapReceivedMessage*(
     rm: ReliabilityManager, message: seq[byte]
 ): Result[
-    tuple[message: seq[byte], missingDeps: seq[SdsMessageID], channelId: SdsChannelID],
+    tuple[message: seq[byte], missingDeps: seq[HistoryEntry], channelId: SdsChannelID],
     ReliabilityError,
 ] =
   ## Unwraps a received message and processes its reliability metadata.
@@ -209,7 +209,7 @@ proc unwrapReceivedMessage*(
     if missingDeps.len == 0:
       var depsInBuffer = false
       for msgId, entry in channel.incomingBuffer.pairs():
-        if msgId in msg.causalHistory:
+        if msgId in msg.causalHistory.getMessageIds():
           depsInBuffer = true
           break
       # Check if any dependencies are still in incoming buffer
@@ -224,9 +224,9 @@ proc unwrapReceivedMessage*(
           rm.onMessageReady(msg.messageId, channelId)
     else:
       channel.incomingBuffer[msg.messageId] =
-        IncomingMessage(message: msg, missingDeps: missingDeps.toHashSet())
+        IncomingMessage(message: msg, missingDeps: missingDeps.getMessageIds().toHashSet())
       if not rm.onMissingDependencies.isNil():
-        rm.onMissingDependencies(msg.messageId, missingDeps, channelId)
+        rm.onMissingDependencies(msg.messageId, missingDeps.getMessageIds(), channelId)
 
     return ok((msg.content, missingDeps, channelId))
   except Exception:
@@ -271,6 +271,7 @@ proc setCallbacks*(
     onMessageSent: MessageSentCallback,
     onMissingDependencies: MissingDependenciesCallback,
     onPeriodicSync: PeriodicSyncCallback = nil,
+    onRetrievalHint: RetrievalHintProvider = nil
 ) =
   ## Sets the callback functions for various events in the ReliabilityManager.
   ##
@@ -279,11 +280,13 @@ proc setCallbacks*(
   ##   - onMessageSent: Callback function called when a message is confirmed as sent.
   ##   - onMissingDependencies: Callback function called when a message has missing dependencies.
   ##   - onPeriodicSync: Callback function called to notify about periodic sync
+  ##   - onRetrievalHint: Callback function called to get a retrieval hint for a message ID.
   withLock rm.lock:
     rm.onMessageReady = onMessageReady
     rm.onMessageSent = onMessageSent
     rm.onMissingDependencies = onMissingDependencies
     rm.onPeriodicSync = onPeriodicSync
+    rm.onRetrievalHint = onRetrievalHint
 
 proc checkUnacknowledgedMessages(
     rm: ReliabilityManager, channelId: SdsChannelID

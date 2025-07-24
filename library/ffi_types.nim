@@ -5,6 +5,10 @@ type SdsCallBack* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
 
+type SdsRetrievalHintProvider* = proc(
+  messageId: cstring, hint: ptr cstring, hintLen: ptr csize_t, userData: pointer
+) {.cdecl, gcsafe, raises: [].}
+
 const RET_OK*: cint = 0
 const RET_ERR*: cint = 1
 const RET_MISSING_CALLBACK*: cint = 2

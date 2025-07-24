@@ -65,7 +65,7 @@ proc process*(
     let (unwrappedMessage, missingDeps, channelId) = unwrapReceivedMessage(rm[], messageBytes).valueOr:
       return err("error processing UNWRAP_MESSAGE request: " & $error)
 
-    let res = SdsUnwrapResponse(message: unwrappedMessage, missingDeps: missingDeps, channelId: channelId)
+    let res = SdsUnwrapResponse(message: unwrappedMessage, missingDeps: missingDeps.getMessageIds(), channelId: channelId)
 
     # return the result as a json string
     return ok($(%*(res)))
