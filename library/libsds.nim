@@ -105,7 +105,7 @@ proc onMessageSent(ctx: ptr SdsContext): MessageSentCallback =
       $JsonMessageSentEvent.new(messageId, channelId)
 
 proc onMissingDependencies(ctx: ptr SdsContext): MissingDependenciesCallback =
-  return proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+  return proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
     callEventCallback(ctx, "onMissingDependencies"):
       $JsonMissingDependenciesEvent.new(messageId, missingDeps, channelId)
 
