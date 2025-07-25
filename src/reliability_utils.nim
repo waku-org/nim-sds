@@ -124,6 +124,27 @@ proc updateLamportTimestamp*(
     error "Failed to update lamport timestamp",
       channelId = channelId, msgTs = msgTs, error = getCurrentExceptionMsg()
 
+# Helper functions for HistoryEntry
+proc newHistoryEntry*(messageId: SdsMessageID, retrievalHint: seq[byte] = @[]): HistoryEntry =
+  ## Creates a new HistoryEntry with optional retrieval hint
+  HistoryEntry(messageId: messageId, retrievalHint: retrievalHint)
+
+proc newHistoryEntry*(messageId: SdsMessageID, retrievalHint: string): HistoryEntry =
+  ## Creates a new HistoryEntry with string retrieval hint
+  HistoryEntry(messageId: messageId, retrievalHint: cast[seq[byte]](retrievalHint))
+
+proc toCausalHistory*(messageIds: seq[SdsMessageID]): seq[HistoryEntry] =
+  ## Converts a sequence of message IDs to HistoryEntry sequence
+  result = newSeq[HistoryEntry](messageIds.len)
+  for i, msgId in messageIds:
+    result[i] = newHistoryEntry(msgId)
+
+proc getMessageIds*(causalHistory: seq[HistoryEntry]): seq[SdsMessageID] =
+  ## Extracts message IDs from HistoryEntry sequence
+  result = newSeq[SdsMessageID](causalHistory.len)
+  for i, entry in causalHistory:
+    result[i] = entry.messageId
+
 proc getRecentHistoryEntries*(
     rm: ReliabilityManager, n: int, channelId: SdsChannelID
 ): seq[HistoryEntry] =
