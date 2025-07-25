@@ -10,7 +10,7 @@ type
     proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
 
   MissingDependenciesCallback* = proc(
-    messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
+    messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID
   ) {.gcsafe.}
 
   RetrievalHintProvider* = proc(messageId: SdsMessageID): seq[byte] {.gcsafe.}
@@ -48,7 +48,7 @@ type
     onMessageReady*: proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
     onMessageSent*: proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
     onMissingDependencies*: proc(
-      messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
+      messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID
     ) {.gcsafe.}
     onPeriodicSync*: PeriodicSyncCallback
     onRetrievalHint*: RetrievalHintProvider
@@ -153,9 +153,23 @@ proc checkDependencies*(
       let channel = rm.channels[channelId]
       for dep in deps:
         if dep.messageId notin channel.messageHistory:
-          missingDeps.add(dep)
+          # If we have a retrieval hint provider and the original dep has no hint, get one
+          if not rm.onRetrievalHint.isNil() and dep.retrievalHint.len == 0:
+            let hint = rm.onRetrievalHint(dep.messageId)
+            missingDeps.add(newHistoryEntry(dep.messageId, hint))
+          else:
+            missingDeps.add(dep)
     else:
-      missingDeps = deps
+      # Channel doesn't exist, all deps are missing
+      if not rm.onRetrievalHint.isNil():
+        for dep in deps:
+          if dep.retrievalHint.len == 0:
+            let hint = rm.onRetrievalHint(dep.messageId)
+            missingDeps.add(newHistoryEntry(dep.messageId, hint))
+          else:
+            missingDeps.add(dep)
+      else:
+        missingDeps = deps
   except Exception:
     error "Failed to check dependencies",
       channelId = channelId, error = getCurrentExceptionMsg()

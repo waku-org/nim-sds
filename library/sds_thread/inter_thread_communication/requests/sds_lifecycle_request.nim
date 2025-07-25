@@ -40,6 +40,7 @@ proc createReliabilityManager(
   rm.setCallbacks(
     appCallbacks.messageReadyCb, appCallbacks.messageSentCb,
     appCallbacks.missingDependenciesCb, appCallbacks.periodicSyncCb,
+    appCallbacks.retrievalHintProvider,
   )
 
   return ok(rm)

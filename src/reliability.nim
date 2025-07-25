@@ -226,7 +226,7 @@ proc unwrapReceivedMessage*(
       channel.incomingBuffer[msg.messageId] =
         IncomingMessage(message: msg, missingDeps: missingDeps.getMessageIds().toHashSet())
       if not rm.onMissingDependencies.isNil():
-        rm.onMissingDependencies(msg.messageId, missingDeps.getMessageIds(), channelId)
+        rm.onMissingDependencies(msg.messageId, missingDeps, channelId)
 
     return ok((msg.content, missingDeps, channelId))
   except Exception:

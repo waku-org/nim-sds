@@ -99,7 +99,7 @@ suite "Reliability Mechanisms":
         messageReadyCount += 1,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         messageSentCount += 1,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         missingDepsCount += 1,
     )
 
@@ -176,7 +176,7 @@ suite "Reliability Mechanisms":
         messageReadyCount += 1,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         messageSentCount += 1,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         missingDepsCount += 1,
     )
 
@@ -216,7 +216,7 @@ suite "Reliability Mechanisms":
         discard,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         messageSentCount += 1,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         discard,
     )
 
@@ -261,7 +261,7 @@ suite "Reliability Mechanisms":
         messageReadyCount += 1,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         messageSentCount += 1,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         missingDepsCount += 1,
       nil,
       proc(messageId: SdsMessageID): seq[byte] =
@@ -301,8 +301,8 @@ suite "Reliability Mechanisms":
     let (_, missingDeps3, _) = unwrapResult3.get()
     check missingDeps3.len == 1
     check missingDeps3[0].messageId == "missing-dep"
-    # The hint is empty because it was not in our history, so the provider was not called
-    check missingDeps3[0].retrievalHint.len == 0
+    # The hint should be populated by the retrieval hint provider for missing dependencies
+    check missingDeps3[0].retrievalHint == cast[seq[byte]]("hint:missing-dep")
 
 # Periodic task & Buffer management tests
 suite "Periodic Tasks & Buffer Management":
@@ -326,7 +326,7 @@ suite "Periodic Tasks & Buffer Management":
         discard,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         messageSentCount += 1,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         discard,
     )
 
@@ -381,7 +381,7 @@ suite "Periodic Tasks & Buffer Management":
         discard,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         messageSentCount += 1,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         discard,
     )
 
@@ -430,7 +430,7 @@ suite "Periodic Tasks & Buffer Management":
         discard,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         discard,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         discard,
       proc() {.gcsafe.} =
         syncCallCount += 1,
@@ -496,7 +496,7 @@ suite "Special Cases Handling":
         messageReadyCount += 1,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         discard,
-      proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         discard,
     )
 
@@ -654,7 +654,7 @@ suite "Multi-Channel ReliabilityManager Tests":
         readyMessageCount += 1,
       proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.} =
         sentMessageCount += 1,
-      proc(messageId: SdsMessageID, deps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+      proc(messageId: SdsMessageID, deps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
         missingDepsCount += 1
     )
 
