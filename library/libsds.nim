@@ -104,13 +104,23 @@ proc libsdsNimMain() {.importc.}
 # To control when the library has been initialized
 var initialized: Atomic[bool]
 
-if defined(android):
+when defined(android):
   # Redirect chronicles to Android System logs
   when compiles(defaultChroniclesStream.outputs[0].writer):
     defaultChroniclesStream.outputs[0].writer = proc(
         logLevel: LogLevel, msg: LogOutputStr
     ) {.raises: [].} =
       echo logLevel, msg
+else:
+  # For non-android, configure Chronicles with a null writer to suppress logs
+  # or redirect to a proper logging mechanism
+  when compiles(defaultChroniclesStream.outputs[0].writer):
+    defaultChroniclesStream.outputs[0].writer = proc(
+        logLevel: LogLevel, msg: LogOutputStr
+    ) {.raises: [].} =
+      # Only log ERROR and FATAL levels to reduce verbosity
+      if logLevel >= LogLevel.ERROR:
+        echo "[nim-sds] ", logLevel, ": ", msg
 
 proc initializeLibrary() {.exported.} =
   if not initialized.exchange(true):
