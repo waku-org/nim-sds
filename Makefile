@@ -62,3 +62,68 @@ else
 		$(ENV_SCRIPT) nim libsdsDynamic $(NIM_PARAMS) sds.nims
 endif
 endif
+
+#####################
+## Mobile Bindings ##
+#####################
+.PHONY: libsds-android \
+				libsds-android-precheck \
+				libsds-android-arm64 \
+				libsds-android-amd64 \
+				libsds-android-x86 \
+				libsds-android-arm \
+				rebuild-nat-libs \
+				build-libsds-for-android-arch
+
+ANDROID_TARGET ?= 30
+ifeq ($(detected_OS),Darwin)
+	ANDROID_TOOLCHAIN_DIR := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/darwin-x86_64
+else
+	ANDROID_TOOLCHAIN_DIR := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64
+endif
+
+rebuild-nat-libs: | clean-cross nat-libs
+
+libsds-android-precheck:
+ifndef ANDROID_NDK_HOME
+		$(error ANDROID_NDK_HOME is not set)
+endif
+
+build-libsds-for-android-arch:
+	$(MAKE) rebuild-nat-libs CC=$(ANDROID_TOOLCHAIN_DIR)/bin/$(ANDROID_COMPILER) && \
+	./scripts/build_rln_android.sh $(CURDIR)/build $(LIBRLN_BUILDDIR) $(LIBRLN_VERSION) $(CROSS_TARGET) $(ABIDIR) && \
+	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_ARCH=$(ANDROID_ARCH) ANDROID_COMPILER=$(ANDROID_COMPILER) ANDROID_TOOLCHAIN_DIR=$(ANDROID_TOOLCHAIN_DIR) $(ENV_SCRIPT) nim libsdsAndroid $(NIM_PARAMS) sds.nims
+
+libsds-android-arm64: ANDROID_ARCH=aarch64-linux-android
+libsds-android-arm64: CPU=arm64
+libsds-android-arm64: ABIDIR=arm64-v8a
+libsds-android-arm64: | libsds-android-precheck build deps
+	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
+
+libsds-android-amd64: ANDROID_ARCH=x86_64-linux-android
+libsds-android-amd64: CPU=amd64
+libsds-android-amd64: ABIDIR=x86_64
+libsds-android-amd64: | libsds-android-precheck build deps
+	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
+
+libsds-android-x86: ANDROID_ARCH=i686-linux-android
+libsds-android-x86: CPU=i386
+libsds-android-x86: ABIDIR=x86
+libsds-android-x86: | libsds-android-precheck build deps
+	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
+
+libsds-android-arm: ANDROID_ARCH=armv7a-linux-androideabi
+libsds-android-arm: CPU=arm
+libsds-android-arm: ABIDIR=armeabi-v7a
+libsds-android-arm: | libsds-android-precheck build deps
+# cross-rs target architecture name does not match the one used in android
+	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=armv7-linux-androideabi CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
+
+libsds-android:
+	$(MAKE) libsds-android-amd64
+	$(MAKE) libsds-android-arm64
+	$(MAKE) libsds-android-x86
+# This target is disabled because on recent versions of cross-rs complain with the following error
+# relocation R_ARM_THM_ALU_PREL_11_0 cannot be used against symbol 'stack_init_trampoline_return'; recompile with -fPIC
+# It's likely this architecture is not used so we might just not support it.
+#	$(MAKE) libsds-android-arm
