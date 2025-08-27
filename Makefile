@@ -86,7 +86,7 @@ ifndef ANDROID_NDK_HOME
 		$(error ANDROID_NDK_HOME is not set)
 endif
 
-build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="-nostdinc --sysroot=$ANDROID_TOOLCHAIN_DIR/sysroot -I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="-nostdinc -I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include"
 build-libsds-for-android-arch:
 	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_ARCH=$(ANDROID_ARCH) ANDROID_COMPILER=$(ANDROID_COMPILER) \
 	ANDROID_TOOLCHAIN_DIR=$(ANDROID_TOOLCHAIN_DIR) $(ENV_SCRIPT) \
