@@ -87,8 +87,8 @@ ifndef ANDROID_NDK_HOME
 endif
 
 build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="--sysroot=$(ANDROID_TOOLCHAIN_DIR)/sysroot" --passC="-I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include"
-build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="-I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include/$(ABIDIR)-linux-android"
-build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passL="-L$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/lib/$(ABIDIR)-linux-android/$(ANDROID_TARGET)"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="-I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include/$(ARCH_DIRNAME)"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passL="-L$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/lib/$(ARCH_DIRNAME)/$(ANDROID_TARGET)"
 build-libsds-for-android-arch:
 	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_ARCH=$(ANDROID_ARCH) ANDROID_COMPILER=$(ANDROID_COMPILER) \
 	ANDROID_TOOLCHAIN_DIR=$(ANDROID_TOOLCHAIN_DIR) $(ENV_SCRIPT) \
@@ -97,6 +97,7 @@ build-libsds-for-android-arch:
 libsds-android-arm64: ANDROID_ARCH=aarch64-linux-android
 libsds-android-arm64: CPU=arm64
 libsds-android-arm64: ABIDIR=arm64-v8a
+libsds-android-arm64: ARCH_DIRNAME=aarch64-linux-android
 libsds-android-arm64: | libsds-android-precheck build deps
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) \
 	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
@@ -104,6 +105,7 @@ libsds-android-arm64: | libsds-android-precheck build deps
 libsds-android-amd64: ANDROID_ARCH=x86_64-linux-android
 libsds-android-amd64: CPU=amd64
 libsds-android-amd64: ABIDIR=x86_64
+libsds-android-amd64: ARCH_DIRNAME=x86_64-linux-android
 libsds-android-amd64: | libsds-android-precheck build deps
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) \
 	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
@@ -111,6 +113,7 @@ libsds-android-amd64: | libsds-android-precheck build deps
 libsds-android-x86: ANDROID_ARCH=i686-linux-android
 libsds-android-x86: CPU=i386
 libsds-android-x86: ABIDIR=x86
+libsds-android-x86: ARCH_DIRNAME=i686-linux-android
 libsds-android-x86: | libsds-android-precheck build deps
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) \
 	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
@@ -118,6 +121,7 @@ libsds-android-x86: | libsds-android-precheck build deps
 libsds-android-arm: ANDROID_ARCH=armv7a-linux-androideabi
 libsds-android-arm: CPU=arm
 libsds-android-arm: ABIDIR=armeabi-v7a
+libsds-android-arm: ARCH_DIRNAME=arm-linux-androideabi
 libsds-android-arm: | libsds-android-precheck build deps
 # cross-rs target architecture name does not match the one used in android
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) \
