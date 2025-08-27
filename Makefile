@@ -90,7 +90,10 @@ build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="--sysroot=$(
 build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="-I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include/$(ARCH_DIRNAME)"
 build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passL="-L$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/lib/$(ARCH_DIRNAME)/$(ANDROID_TARGET)"
 build-libsds-for-android-arch:
-	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_ARCH=$(ANDROID_ARCH) ANDROID_COMPILER=$(ANDROID_COMPILER) \
+	CPU=$(CPU) ABIDIR=$(ABIDIR) \
+	ARCH_DIRNAME=$(ARCH_DIRNAME) \
+	ANDROID_ARCH=$(ANDROID_ARCH) \
+	ANDROID_COMPILER=$(ANDROID_COMPILER) \
 	ANDROID_TOOLCHAIN_DIR=$(ANDROID_TOOLCHAIN_DIR) $(ENV_SCRIPT) \
 	nim libsdsAndroid $(NIM_PARAMS) sds.nims
 
