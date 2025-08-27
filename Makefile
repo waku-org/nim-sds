@@ -86,7 +86,11 @@ ifndef ANDROID_NDK_HOME
 		$(error ANDROID_NDK_HOME is not set)
 endif
 
-build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="--sysroot=$(ANDROID_TOOLCHAIN_DIR)/sysroot" --passC="-I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="--sysroot=$(ANDROID_TOOLCHAIN_DIR)/sysroot"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passL="--sysroot=$(ANDROID_TOOLCHAIN_DIR)/sysroot"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="--target=$(ANDROID_ARCH)$(ANDROID_TARGET)"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passL="--target=$(ANDROID_ARCH)$(ANDROID_TARGET)"
+build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="-I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include"
 build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="-I$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/include/$(ARCH_DIRNAME)"
 build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passL="-L$(ANDROID_TOOLCHAIN_DIR)/sysroot/usr/lib/$(ARCH_DIRNAME)/$(ANDROID_TARGET)"
 build-libsds-for-android-arch:
