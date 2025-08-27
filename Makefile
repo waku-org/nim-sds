@@ -103,7 +103,7 @@ libsds-android-arm64: ABIDIR=arm64-v8a
 libsds-android-arm64: ARCH_DIRNAME=aarch64-linux-android
 libsds-android-arm64: | libsds-android-precheck build deps
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) \
-	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
+	CPU=$(CPU) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
 
 libsds-android-amd64: ANDROID_ARCH=x86_64-linux-android
 libsds-android-amd64: CPU=amd64
@@ -111,7 +111,7 @@ libsds-android-amd64: ABIDIR=x86_64
 libsds-android-amd64: ARCH_DIRNAME=x86_64-linux-android
 libsds-android-amd64: | libsds-android-precheck build deps
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) \
-	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
+	CPU=$(CPU) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
 
 libsds-android-x86: ANDROID_ARCH=i686-linux-android
 libsds-android-x86: CPU=i386
@@ -119,7 +119,7 @@ libsds-android-x86: ABIDIR=x86
 libsds-android-x86: ARCH_DIRNAME=i686-linux-android
 libsds-android-x86: | libsds-android-precheck build deps
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) CROSS_TARGET=$(ANDROID_ARCH) \
-	CPU=$(CPU) ABIDIR=$(ABIDIR) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
+	CPU=$(CPU) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME) ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
 
 libsds-android-arm: ANDROID_ARCH=armv7a-linux-androideabi
 libsds-android-arm: CPU=arm
@@ -128,7 +128,7 @@ libsds-android-arm: ARCH_DIRNAME=arm-linux-androideabi
 libsds-android-arm: | libsds-android-precheck build deps
 # cross-rs target architecture name does not match the one used in android
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) \
-	CROSS_TARGET=armv7-linux-androideabi CPU=$(CPU) ABIDIR=$(ABIDIR) \
+	CROSS_TARGET=armv7-linux-androideabi CPU=$(CPU) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME) \
 	ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
 
 libsds-android:
