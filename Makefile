@@ -136,10 +136,18 @@ libsds-android-arm: | libsds-android-precheck build deps
 	ANDROID_COMPILER=$(ANDROID_ARCH)$(ANDROID_TARGET)-clang
 
 libsds-android:
+ifeq ($(ARCH),arm64)
+	$(MAKE) libsds-android-arm64
+else ifeq ($(ARCH),amd64)
 	$(MAKE) libsds-android-amd64
-# 	$(MAKE) libsds-android-arm64
-# 	$(MAKE) libsds-android-x86
+else ifeq ($(ARCH),x86)
+	$(MAKE) libsds-android-x86
+# else ifeq ($(ARCH),arm)
+# 	$(MAKE) libsds-android-arm
 # This target is disabled because on recent versions of cross-rs complain with the following error
 # relocation R_ARM_THM_ALU_PREL_11_0 cannot be used against symbol 'stack_init_trampoline_return'; recompile with -fPIC
 # It's likely this architecture is not used so we might just not support it.
-#	$(MAKE) libsds-android-arm
+else
+	$(error Unsupported ARCH '$(ARCH)'. Please set ARCH to one of: arm64, arm, amd64, x86)
+endif
+
