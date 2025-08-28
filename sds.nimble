@@ -48,9 +48,8 @@ task libsdsDynamic, "Generate bindings":
 ### Mobile Android
 proc buildMobileAndroid(srcDir = ".", params = "") =
   let cpu = getEnv("CPU")
-  let abiDir = getEnv("ABIDIR")
 
-  let outDir = "build/android/" & abiDir
+  let outDir = "build/"
   if not dirExists outDir:
     mkDir outDir
 
@@ -61,8 +60,8 @@ proc buildMobileAndroid(srcDir = ".", params = "") =
   exec "nim c" & " --out:" & outDir &
     "/libsds.so --threads:on --app:lib --opt:size --noMain --mm:refc " &
     "-d:chronicles_sinks=textlines[dynamic] --header --passL:-L" & outdir &
-    " --passL:-llog --cpu:" & cpu & " --os:android -d:androidNDK " &
-    extra_params & " " & srcDir & "/libsds.nim"
+    " --passL:-llog --cpu:" & cpu & " --os:android -d:androidNDK " & extra_params & " " &
+    srcDir & "/libsds.nim"
 
 task libsdsAndroid, "Build the mobile bindings for Android":
   let srcDir = "./library"
