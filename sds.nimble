@@ -20,11 +20,11 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
     extra_params &= " " & paramStr(i)
   if `type` == "static":
     exec "nim c" & " --out:build/" & name &
-      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --undef:metrics --nimMainPrefix:libsds --skipParentCfg:on " &
+      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
       extra_params & " " & srcDir & name & ".nim"
   else:
     exec "nim c" & " --out:build/" & name &
-      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --undef:metrics --nimMainPrefix:libsds --skipParentCfg:on " &
+      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
       extra_params & " " & srcDir & name & ".nim"
 
 # Tasks
@@ -44,3 +44,26 @@ task libsdsDynamic, "Generate bindings":
        --warning:UnusedImport:on \
        -d:chronicles_log_level=TRACE """,
     "dynamic"
+
+### Mobile Android
+proc buildMobileAndroid(srcDir = ".", params = "") =
+  let cpu = getEnv("CPU")
+
+  let outDir = "build/"
+  if not dirExists outDir:
+    mkDir outDir
+
+  var extra_params = params
+  for i in 2 ..< paramCount():
+    extra_params &= " " & paramStr(i)
+
+  exec "nim c" & " --out:" & outDir &
+    "/libsds.so --threads:on --app:lib --opt:size --noMain --mm:refc --nimMainPrefix:libsds " &
+    "-d:chronicles_sinks=textlines[dynamic] --header --passL:-L" & outdir &
+    " --passL:-llog --cpu:" & cpu & " --os:android -d:androidNDK " & extra_params & " " &
+    srcDir & "/libsds.nim"
+
+task libsdsAndroid, "Build the mobile bindings for Android":
+  let srcDir = "./library"
+  let extraParams = "-d:chronicles_log_level=ERROR"
+  buildMobileAndroid srcDir, extraParams
