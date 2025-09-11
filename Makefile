@@ -1,4 +1,4 @@
-.PHONY: libsds
+.PHONY: libsds deps
 
 export BUILD_SYSTEM_DIR := vendor/nimbus-build-system
 LINK_PCRE := 0
@@ -34,7 +34,7 @@ update: | update-common
 clean:
 	rm -rf build
 
-deps: | sds.nims
+deps: | deps-common sds.nims
 
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
@@ -52,11 +52,21 @@ endif
 
 STATIC ?= 0
 
-libsds: deps
+detected_OS ?= Linux
+ifeq ($(OS),Windows_NT)
+detected_OS := Windows
+else
+detected_OS := $(shell uname -s)
+endif
+
+libsds: | deps
 		rm -f build/libsds*
-ifeq ($(STATIC), 1)
+ifeq ($(STATIC),1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
 		$(ENV_SCRIPT) nim libsdsStatic $(NIM_PARAMS) sds.nims
+else ifeq ($(detected_OS),Windows)
+		echo -e $(BUILD_MSG) "build/$@.dll" && \
+		$(ENV_SCRIPT) nim libsdsDynamic $(NIM_PARAMS) sds.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
 		$(ENV_SCRIPT) nim libsdsDynamic $(NIM_PARAMS) sds.nims
