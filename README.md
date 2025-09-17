@@ -28,7 +28,7 @@ Then, use one of the following commands, according to the current architecture:
 | amd64 | make libsds-android ARCH=amd64 |
 | x86 | make libsds-android ARCH=x86 |
 
-At the end of the process, the library will get created in build/libsds.so
+At the end of the process, the library will be created in build/libsds.so
 
 ## Windows, Linux or MacOS
 
