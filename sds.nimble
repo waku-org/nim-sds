@@ -23,9 +23,15 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
       extra_params & " " & srcDir & name & ".nim"
   else:
-    exec "nim c" & " --out:build/" & name &
-      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
-      extra_params & " " & srcDir & name & ".nim"
+    let lib_name = (when defined(windows): toDll(name) else: name & ".so")
+    when defined(windows):
+      exec "nim c" & " --out:build/" & lib_name &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:off " &
+        extra_params & " " & srcDir & name & ".nim"
+    else:
+      exec "nim c" & " --out:build/" & lib_name &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
+        extra_params & " " & srcDir & name & ".nim"
 
 # Tasks
 task test, "Run the test suite":
@@ -36,13 +42,7 @@ task libsdsDynamic, "Generate bindings":
   let name = "libsds"
   buildLibrary name,
     "library/",
-    """-d:chronicles_line_numbers \
-       -d:chronicles_runtime_filtering=on \
-       -d:chronicles_sinks="textlines,json" \
-       -d:chronicles_default_output_device=Dynamic \
-       --warning:Deprecated:off \
-       --warning:UnusedImport:on \
-       -d:chronicles_log_level=TRACE """,
+    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
     "dynamic"
 
 ### Mobile Android
