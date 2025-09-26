@@ -1,5 +1,5 @@
 import unittest, results, strutils
-import ../src/bloom
+import ../src/sds/bloom
 from random import rand, randomize
 
 suite "bloom filter":
