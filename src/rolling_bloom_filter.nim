@@ -78,7 +78,7 @@ proc clean*(rbf: var RollingBloomFilter) {.gcsafe.} =
 
     # Initialize new filter
     var newFilter = initializeBloomFilter(rbf.maxCapacity, rbf.filter.errorRate).valueOr:
-      error "Failed to create new bloom filter", error = $error
+      debug "Failed to create new bloom filter", error = $error
       return
 
     # Keep most recent messages up to minCapacity
@@ -93,7 +93,7 @@ proc clean*(rbf: var RollingBloomFilter) {.gcsafe.} =
     rbf.messages = newMessages
     rbf.filter = newFilter
   except Exception:
-    error "Failed to clean bloom filter", error = getCurrentExceptionMsg()
+    debug "Failed to clean bloom filter", error = getCurrentExceptionMsg()
 
 proc add*(rbf: var RollingBloomFilter, messageId: SdsMessageID) {.gcsafe.} =
   ## Adds a message ID to the rolling bloom filter.
