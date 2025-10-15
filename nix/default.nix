@@ -76,7 +76,6 @@ in stdenv.mkDerivation rec {
     cd $out
     zip -r libwaku.aar *
   '' else ''
-    # Include library
     mkdir -p $out/lib -p $out/include
     cp build/* $out/lib/
     cp library/libsds.h $out/include/
