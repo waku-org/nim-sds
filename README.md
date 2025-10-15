@@ -3,6 +3,13 @@ Nim implementation of the e2e reliability protocol
 
 ## Building
 
+### Nix
+
+```bash
+nix build --print-out-paths '.?submodules=1#libsds'
+nix build --print-out-paths '.?submodules=1#libsds-android-arm64'
+```
+
 ### Windows, Linux or MacOS
 
 ```code

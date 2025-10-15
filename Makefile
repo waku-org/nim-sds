@@ -6,6 +6,11 @@ LINK_PCRE := 0
 # we don't want an error here, so we can handle things later, in the ".DEFAULT" target
 -include $(BUILD_SYSTEM_DIR)/makefiles/variables.mk
 
+nimbus-build-system-nimble-dir:
+	NIMBLE_DIR="$(CURDIR)/$(NIMBLE_DIR)" \
+	PWD_CMD="$(PWD)" \
+	$(CURDIR)/scripts/generate_nimble_links.sh
+
 ifeq ($(NIM_PARAMS),)
 # "variables.mk" was not included, so we update the submodules.
 GIT_SUBMODULE_UPDATE := git submodule update --init --recursive
@@ -90,6 +95,8 @@ ifeq ($(detected_OS),Darwin)
 else
 	ANDROID_TOOLCHAIN_DIR := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64
 endif
+# Fixes "clang: not found" errors
+PATH := $(ANDROID_TOOLCHAIN_DIR)/bin:$(PATH)
 
 libsds-android-precheck:
 ifndef ANDROID_NDK_HOME
@@ -161,4 +168,3 @@ else ifeq ($(ARCH),x86)
 else
 	$(error Unsupported ARCH '$(ARCH)'. Please set ARCH to one of: arm64, arm, amd64, x86)
 endif
-

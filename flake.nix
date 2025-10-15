@@ -7,7 +7,7 @@
   };
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?rev=f44bd8ca21e026135061a0a57dcf3d0775b67a49";
+    nixpkgs.url = "github:NixOS/nixpkgs?rev=0ef228213045d2cdb5a169a95d63ded38670b293";
   };
 
   outputs = { self, nixpkgs }:
@@ -15,8 +15,7 @@
       stableSystems = [
         "x86_64-linux" "aarch64-linux"
         "x86_64-darwin" "aarch64-darwin"
-        "x86_64-windows" "i686-linux"
-        "i686-windows"
+        #"x86_64-windows" FIXME: Check if it works.
       ];
 
       forAllSystems = f: nixpkgs.lib.genAttrs stableSystems (system: f system);
@@ -45,11 +44,16 @@
         libsds-android-arm64 = pkgs.callPackage ./nix/default.nix {
           inherit stableSystems;
           src = self;
-          targets = ["libsds-android-arm64"]; 
-          androidArch = "aarch64-linux-android";
-          abidir = "arm64-v8a";
+          targets = ["libsds-android-arm64"];
         };
-        default = libsds-android-arm64;
+
+        libsds = pkgs.callPackage ./nix/default.nix {
+          inherit stableSystems;
+          src = self;
+          targets = ["libsds"];
+        };
+
+        default = libsds;
       });
 
       devShells = forAllSystems (system: {

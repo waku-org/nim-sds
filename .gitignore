@@ -6,6 +6,7 @@ docs
 for_reference
 do_not_commit
 build/*
+result
 sds.nims
 /.update.timestamp
 
