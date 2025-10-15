@@ -78,7 +78,7 @@ in stdenv.mkDerivation rec {
   '' else ''
     # Include library
     mkdir -p $out/lib -p $out/include
-    cp -r build/* $out/lib
+    cp build/* $out/lib/
     cp library/libsds.h $out/include/
   '';
 
