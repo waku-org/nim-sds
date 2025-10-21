@@ -39,13 +39,24 @@
     in rec {
       packages = forAllSystems (system: let
         pkgs = pkgsFor.${system};
+        targets = [
+          "libsds-android-arm64"
+          "libsds-android-amd64"
+          "libsds-android-x86"
+          "libsds-android-arm"
+        ];
       in rec {
-        libsds-android-arm64 = pkgs.callPackage ./nix/default.nix {
-          inherit stableSystems;
-          src = self;
-          targets = ["libsds-android-arm64"];
-        };
+        # Generate a package for each target dynamically
+        androidPackages = builtins.listToAttrs (map (t: {
+          name = t;
+          value = pkgs.callPackage ./nix/default.nix {
+            inherit stableSystems;
+            src = self;
+            targets = [ t ];
+          };
+        }) targets);
 
+        # Existing non-Android package
         libsds = pkgs.callPackage ./nix/default.nix {
           inherit stableSystems;
           src = self;
@@ -53,10 +64,6 @@
         };
 
         default = libsds;
-      });
-
-      devShells = forAllSystems (system: {
-        default = pkgsFor.${system}.callPackage ./nix/shell.nix {};
       });
     };
 }
