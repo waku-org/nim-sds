@@ -85,6 +85,8 @@ in stdenv.mkDerivation rec {
     description = "Nim implementation of the e2e reliability protocol";
     homepage = "https://github.com/status-im/nim-sds";
     license = licenses.mit;
-    platforms = ["aarch64-linux" "x86_64-linux" "aarch64-darwin" "x86_64-darwin"];
+    platforms = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"];
   };
 }
+
+
