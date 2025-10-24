@@ -65,5 +65,12 @@
           targets = [ name ];
         };
       }) targets));
+
+      devShells = forAllSystems (system: let
+        pkgs = pkgsFor.${system};
+      in {
+        default = pkgs.callPackage ./nix/shell.nix { } ;
+      });
     };
+
 }
