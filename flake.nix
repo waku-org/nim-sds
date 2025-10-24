@@ -47,24 +47,23 @@
           "libsds-android-arm"
         ];
       in rec {
-        # Generate a package for each target dynamically
-        androidPackages = builtins.listToAttrs (map (t: {
-          name = t;
-          value = pkgs.callPackage ./nix/default.nix {
-            inherit stableSystems;
-            src = self;
-            targets = [ t ];
-          };
-        }) targets);
-
-        # Existing non-Android package
+        # non-Android package
         libsds = pkgs.callPackage ./nix/default.nix {
           inherit stableSystems;
           src = self;
-          targets = ["libsds"];
+          targets = [ "libsds" ];
         };
 
         default = libsds;
-      });
+      }
+      # Generate a package for each target dynamically
+      // builtins.listToAttrs (map (name: {
+        inherit name;
+        value = pkgs.callPackage ./nix/default.nix {
+          inherit stableSystems;
+          src = self;
+          targets = [ name ];
+        };
+      }) targets));
     };
 }
