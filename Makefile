@@ -64,19 +64,28 @@ else
 detected_OS := $(shell uname -s)
 endif
 
+BUILD_COMMAND ?= libsdsDynamic
+
+ifeq ($(detected_OS),Windows)
+	LIB_EXT_DYNAMIC = dll
+	LIB_EXT_STATIC = lib
+else ifeq ($(detected_OS),Darwin)
+	LIB_EXT_DYNAMIC = dylib
+	LIB_EXT_STATIC = a
+else ifeq ($(detected_OS),Linux)
+	LIB_EXT_DYNAMIC = so
+	LIB_EXT_STATIC = a
+endif
+
+LIB_EXT := $(LIB_EXT_DYNAMIC)
+
+ifeq ($(STATIC), 1)
+	LIB_EXT = $(LIB_EXT_STATIC)
+	BUILD_COMMAND = libsdsStatic
+endif
+
 libsds: | deps
-		rm -f build/libsds*
-ifeq ($(STATIC),1)
-		echo -e $(BUILD_MSG) "build/$@.a" && \
-		$(ENV_SCRIPT) nim libsdsStatic $(NIM_PARAMS) sds.nims
-else ifeq ($(detected_OS),Windows)
-		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libsdsDynamic $(NIM_PARAMS) sds.nims
-else
-		echo -e $(BUILD_MSG) "build/$@.so" && \
-		$(ENV_SCRIPT) nim libsdsDynamic $(NIM_PARAMS) sds.nims
-endif
-endif
+	echo -e $(BUILD_MSG) "build/$@.$(LIB_EXT)" && $(ENV_SCRIPT) nim $(BUILD_COMMAND) $(NIM_PARAMS) sds.nims
 
 #####################
 ## Mobile Bindings ##
@@ -152,7 +161,6 @@ libsds-android-arm: | libsds-android-precheck build deps
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) \
 	CPU=$(CPU) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME) \
 
-
 libsds-android:
 ifeq ($(ARCH),arm64)
 	$(MAKE) libsds-android-arm64
@@ -167,4 +175,6 @@ else ifeq ($(ARCH),x86)
 # It's likely this architecture is not used so we might just not support it.
 else
 	$(error Unsupported ARCH '$(ARCH)'. Please set ARCH to one of: arm64, arm, amd64, x86)
+endif
+
 endif
