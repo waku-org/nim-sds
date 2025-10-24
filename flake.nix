@@ -41,7 +41,7 @@
       packages = forAllSystems (system: let
         pkgs = pkgsFor.${system};
         targets = builtins.filter
-          (t: !(stdenv.isDarwin && builtins.match "libsds-android.*" t != null))
+          (t: !(pkgs.stdenv.isDarwin && builtins.match "libsds-android.*" t != null))
           [
             "libsds-android-arm64"
             "libsds-android-amd64"
