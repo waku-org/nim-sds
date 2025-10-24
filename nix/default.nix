@@ -16,7 +16,11 @@ assert pkgs.lib.assertMsg ((src.submodules or true) == true)
 
 let
   inherit (pkgs) stdenv lib writeScriptBin callPackage;
-  inherit (lib) any match substring;
+  inherit (lib) any match substring optionals optionalString;
+
+  # Check if build is for android platform.
+  containsAndroid = s: (match ".*android.*" s) != null;
+  isAndroidBuild = any containsAndroid targets;
 
   version = substring 0 8 (src.sourceInfo.rev or "dirty");
 
@@ -34,18 +38,18 @@ in stdenv.mkDerivation rec {
   nativeBuildInputs = let
     # Fix for Nim compiler calling 'git rev-parse' and 'lsb_release'.
     fakeGit = writeScriptBin "git" "echo ${version}";
-  in
-    with pkgs; [
-      cmake
-      which
-      lsb-release
-      nim-unwrapped-2_2
-      fakeGit
+  in with pkgs; [
+    cmake
+    which
+    nim-unwrapped-2_2
+    fakeGit
+  ] ++ optionals stdenv.isLinux [
+    pkgs.lsb-release
   ];
 
-  # Environment variables required for Android builds
-  ANDROID_SDK_ROOT = "${pkgs.androidPkgs.sdk}";
-  ANDROID_NDK_HOME = "${pkgs.androidPkgs.ndk}";
+  ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
+  ANDROID_NDK_HOME = optionalString isAndroidBuild pkgs.androidPkgs.ndk;
+
   NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${version}";
   XDG_CACHE_HOME = "/tmp";
 
@@ -68,8 +72,7 @@ in stdenv.mkDerivation rec {
     androidManifest = ''
       <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.waku.${pname}\" />
     '';
-    containsAndroid = s: (match ".*android.*" s) != null;
-  in if (any containsAndroid targets) then ''
+  in if isAndroidBuild then ''
     mkdir -p $out/jni
     cp -r build/* $out/jni/
     echo '${androidManifest}' > $out/jni/AndroidManifest.xml
