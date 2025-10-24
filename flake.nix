@@ -40,12 +40,14 @@
     in rec {
       packages = forAllSystems (system: let
         pkgs = pkgsFor.${system};
-        targets = [
-          "libsds-android-arm64"
-          "libsds-android-amd64"
-          "libsds-android-x86"
-          "libsds-android-arm"
-        ];
+        targets = builtins.filter
+          (t: !(stdenv.isDarwin && builtins.match "libsds-android.*" t != null))
+          [
+            "libsds-android-arm64"
+            "libsds-android-amd64"
+            "libsds-android-x86"
+            "libsds-android-arm"
+          ];
       in rec {
         # non-Android package
         libsds = pkgs.callPackage ./nix/default.nix {
