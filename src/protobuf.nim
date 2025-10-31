@@ -52,7 +52,9 @@ proc extractChannelId*(data: seq[byte]): Result[SdsChannelID, ReliabilityError] 
   try:
     let pb = initProtoBuffer(data)
     var channelId: SdsChannelID
-    if not pb.getField(4, channelId).get():
+    let fieldOk = pb.getField(4, channelId).valueOr:
+      return err(ReliabilityError.reDeserializationError)
+    if not fieldOk:
       return err(ReliabilityError.reDeserializationError)
     ok(channelId)
   except:
@@ -99,9 +101,19 @@ proc deserializeBloomFilter*(data: seq[byte]): Result[BloomFilter, ReliabilityEr
   var cap, errRate, kHashes, mBits: uint64
 
   try:
-    if not pb.getField(1, bytes).get() or not pb.getField(2, cap).get() or
-        not pb.getField(3, errRate).get() or not pb.getField(4, kHashes).get() or
-        not pb.getField(5, mBits).get():
+    let
+      field1_Ok = pb.getField(1, bytes).valueOr:
+        return err(ReliabilityError.reDeserializationError)
+      field2_Ok = pb.getField(2, cap).valueOr:
+        return err(ReliabilityError.reDeserializationError)
+      field3_Ok = pb.getField(3, errRate).valueOr:
+        return err(ReliabilityError.reDeserializationError)
+      field4_Ok = pb.getField(4, kHashes).valueOr:
+        return err(ReliabilityError.reDeserializationError)
+      field5_Ok = pb.getField(5, mBits).valueOr:
+        return err(ReliabilityError.reDeserializationError)
+
+    if not field1_Ok or not field2_Ok or not field3_Ok or not field4_Ok or not field5_Ok:
       return err(ReliabilityError.reDeserializationError)
 
     # Convert bytes back to intArray
