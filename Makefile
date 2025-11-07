@@ -65,27 +65,20 @@ detected_OS := $(shell uname -s)
 endif
 
 BUILD_COMMAND ?= libsdsDynamic
-
-ifeq ($(detected_OS),Windows)
-	LIB_EXT_DYNAMIC = dll
-	LIB_EXT_STATIC = lib
-else ifeq ($(detected_OS),Darwin)
-	LIB_EXT_DYNAMIC = dylib
-	LIB_EXT_STATIC = a
-else ifeq ($(detected_OS),Linux)
-	LIB_EXT_DYNAMIC = so
-	LIB_EXT_STATIC = a
-endif
-
-LIB_EXT := $(LIB_EXT_DYNAMIC)
-
 ifeq ($(STATIC), 1)
-	LIB_EXT = $(LIB_EXT_STATIC)
 	BUILD_COMMAND = libsdsStatic
 endif
 
+ifeq ($(detected_OS),Windows)
+	BUILD_COMMAND := $(BUILD_COMMAND)Windows
+else ifeq ($(detected_OS),Darwin)
+	BUILD_COMMAND := $(BUILD_COMMAND)Mac
+else ifeq ($(detected_OS),Linux)
+	BUILD_COMMAND := $(BUILD_COMMAND)Linux
+endif
+
 libsds: | deps
-	echo -e $(BUILD_MSG) "build/$@.$(LIB_EXT)" && $(ENV_SCRIPT) nim $(BUILD_COMMAND) $(NIM_PARAMS) sds.nims
+	$(ENV_SCRIPT) nim $(BUILD_COMMAND) $(NIM_PARAMS) sds.nims
 
 #####################
 ## Mobile Bindings ##

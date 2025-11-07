@@ -11,7 +11,13 @@ srcDir = "src"
 requires "nim >= 2.2.4",
   "chronicles", "chronos", "stew", "stint", "metrics", "libp2p", "results"
 
-proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
+proc buildLibrary(
+    outLibNameAndExt: string,
+    name: string,
+    srcDir = "./",
+    params = "",
+    `type` = "static",
+) =
   if not dirExists "build":
     mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
@@ -19,17 +25,16 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
   for i in 2 ..< paramCount():
     extra_params &= " " & paramStr(i)
   if `type` == "static":
-    exec "nim c" & " --out:build/" & name &
-      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
+    exec "nim c" & " --out:build/" & outLibNameAndExt &
+      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
       extra_params & " " & srcDir & name & ".nim"
   else:
-    let lib_name = (when defined(windows): toDll(name) else: name & ".so")
     when defined(windows):
-      exec "nim c" & " --out:build/" & lib_name &
+      exec "nim c" & " --out:build/" & outLibNameAndExt &
         " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:off " &
         extra_params & " " & srcDir & name & ".nim"
     else:
-      exec "nim c" & " --out:build/" & lib_name &
+      exec "nim c" & " --out:build/" & outLibNameAndExt &
         " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
         extra_params & " " & srcDir & name & ".nim"
 
@@ -38,12 +43,53 @@ task test, "Run the test suite":
   exec "nim c -r tests/test_bloom.nim"
   exec "nim c -r tests/test_reliability.nim"
 
-task libsdsDynamic, "Generate bindings":
+task libsdsDynamicWindows, "Generate bindings":
+  let outLibNameAndExt = "libsds.dll"
   let name = "libsds"
-  buildLibrary name,
-    "library/",
+  buildLibrary outLibNameAndExt,
+    name, "library/",
     """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
     "dynamic"
+
+task libsdsDynamicLinux, "Generate bindings":
+  let outLibNameAndExt = "libsds.so"
+  let name = "libsds"
+  buildLibrary outLibNameAndExt,
+    name, "library/",
+    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    "dynamic"
+
+task libsdsDynamicMac, "Generate bindings":
+  let outLibNameAndExt = "libsds.dylib"
+  let name = "libsds"
+  buildLibrary outLibNameAndExt,
+    name, "library/",
+    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    "dynamic"
+
+task libsdsStaticWindows, "Generate bindings":
+  let outLibNameAndExt = "libsds.lib"
+  let name = "libsds"
+  buildLibrary outLibNameAndExt,
+    name, "library/",
+    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    "static"
+
+task libsdsStaticLinux, "Generate bindings":
+  let outLibNameAndExt = "libsds.a"
+  let name = "libsds"
+  buildLibrary outLibNameAndExt,
+    name, "library/",
+    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    "static"
+
+task libsdsStaticMac, "Generate bindings":
+  let outLibNameAndExt = "libsds.a"
+  let name = "libsds"
+  buildLibrary outLibNameAndExt,
+    name, "library/",
+    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    "static"
 
 ### Mobile Android
 proc buildMobileAndroid(srcDir = ".", params = "") =
