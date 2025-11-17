@@ -55,7 +55,7 @@ proc reviewAckStatus(rm: ReliabilityManager, msg: SdsMessage) {.gcsafe.} =
         )
       )
     else:
-      error "Failed to deserialize bloom filter", error = bfResult.error
+      debug "Failed to deserialize bloom filter", error = bfResult.error
       rbf = none[RollingBloomFilter]()
   else:
     rbf = none[RollingBloomFilter]()
@@ -106,7 +106,7 @@ proc wrapOutgoingMessage*(
 
       let bfResult = serializeBloomFilter(channel.bloomFilter.filter)
       if bfResult.isErr:
-        error "Failed to serialize bloom filter", channelId = channelId
+        debug "Failed to serialize bloom filter", channelId = channelId
         return err(ReliabilityError.reSerializationError)
 
       let msg = SdsMessage(
@@ -230,7 +230,7 @@ proc unwrapReceivedMessage*(
 
     return ok((msg.content, missingDeps, channelId))
   except Exception:
-    error "Failed to unwrap message", msg = getCurrentExceptionMsg()
+    debug "Failed to unwrap message", msg = getCurrentExceptionMsg()
     return err(ReliabilityError.reDeserializationError)
 
 proc markDependenciesMet*(
