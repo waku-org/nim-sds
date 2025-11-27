@@ -73,6 +73,7 @@ ifeq ($(detected_OS),Windows)
 	BUILD_COMMAND := $(BUILD_COMMAND)Windows
 else ifeq ($(detected_OS),Darwin)
 	BUILD_COMMAND := $(BUILD_COMMAND)Mac
+	export IOS_SDK_PATH := $(shell xcrun --sdk iphoneos --show-sdk-path)
 else ifeq ($(detected_OS),Linux)
 	BUILD_COMMAND := $(BUILD_COMMAND)Linux
 endif
@@ -171,3 +172,9 @@ else
 endif
 
 endif
+
+# Target iOS
+
+libsds-ios: | deps
+	$(ENV_SCRIPT) nim libsdsIOS $(NIM_PARAMS) sds.nims
+

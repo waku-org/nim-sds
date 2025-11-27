@@ -91,6 +91,48 @@ task libsdsStaticMac, "Generate bindings":
     """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
     "static"
 
+# Build Mobile iOS
+proc buildMobileIOS(srcDir = ".", sdkPath = "") =
+  echo "Building iOS libsds library"
+
+  let outDir = "build"
+  if not dirExists outDir:
+    mkDir outDir
+
+  if sdkPath.len == 0:
+    quit "Error: Xcode/iOS SDK not found"
+
+  # The output static library
+  let cFile = outDir & "/nimcache/@mlibsds.nim.c"
+  let oFile = outDir & "/libsds.o"
+  let aFile = outDir & "/libsds.a"
+
+  # 1) Generate C sources from Nim (no linking)
+  exec "nim c" &
+      " --nimcache:build/nimcache --os:ios --cpu:arm64" &
+      " --compileOnly:on" &
+      " --noMain --mm:refc" &
+      " --threads:on --opt:size --header" &
+      " --nimMainPrefix:libsds --skipParentCfg:on" &
+      " --cc:clang" &
+      " --out:" & cFile & " " &
+      srcDir & "/libsds.nim"
+
+  exec "clang -arch arm64" &
+      " -isysroot " & sdkPath &
+      " -I./vendor/nimbus-build-system/vendor/Nim/lib/" &
+      " -fembed-bitcode -c " & cFile &
+      " -o " & oFile
+
+  exec "ar rcs " & aFile & " " & oFile
+
+  echo "✔ iOS library created: " & aFile
+
+task libsdsIOS, "Build the mobile bindings for iOS":
+  let srcDir = "./library"
+  let sdkPath = getEnv("IOS_SDK_PATH")
+  buildMobileIOS srcDir, sdkPath
+
 ### Mobile Android
 proc buildMobileAndroid(srcDir = ".", params = "") =
   let cpu = getEnv("CPU")
