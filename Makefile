@@ -94,16 +94,16 @@ libsds: | deps
 
 ANDROID_TARGET ?= 30
 ifeq ($(detected_OS),Darwin)
-	ANDROID_TOOLCHAIN_DIR := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/darwin-x86_64
+	ANDROID_TOOLCHAIN_DIR := $(ANDROID_NDK_ROOT)/toolchains/llvm/prebuilt/darwin-x86_64
 else
-	ANDROID_TOOLCHAIN_DIR := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64
+	ANDROID_TOOLCHAIN_DIR := $(ANDROID_NDK_ROOT)/toolchains/llvm/prebuilt/linux-x86_64
 endif
 # Fixes "clang: not found" errors
 PATH := $(ANDROID_TOOLCHAIN_DIR)/bin:$(PATH)
 
 libsds-android-precheck:
-ifndef ANDROID_NDK_HOME
-		$(error ANDROID_NDK_HOME is not set)
+ifndef ANDROID_NDK_ROOT
+		$(error ANDROID_NDK_ROOT is not set)
 endif
 
 build-libsds-for-android-arch: NIM_PARAMS := $(NIM_PARAMS) --passC="--sysroot=$(ANDROID_TOOLCHAIN_DIR)/sysroot"

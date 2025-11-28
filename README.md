@@ -30,8 +30,8 @@ unzip android-ndk-r27c-linux.zip
 
 Then, add the following to your ~/.bashrc file:
 ```code
-export ANDROID_NDK_HOME=$HOME/android-ndk-r27c
-export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+export ANDROID_NDK_ROOT=$HOME/android-ndk-r27c
+export PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 ```
 
 Then, use one of the following commands, according to the current architecture:

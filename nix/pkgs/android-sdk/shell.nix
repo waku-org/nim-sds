@@ -8,13 +8,13 @@ mkShell {
     export ANDROID_HOME="${androidPkgs.sdk}"
     export ANDROID_NDK_ROOT="${androidPkgs.ndk}"
     export ANDROID_SDK_ROOT="$ANDROID_HOME"
-    export ANDROID_NDK_HOME="${androidPkgs.ndk}"
+    export ANDROID_NDK_ROOT="${androidPkgs.ndk}"
 
     export PATH="$ANDROID_NDK_ROOT:$PATH"
     export PATH="$ANDROID_SDK_ROOT/tools:$PATH"
     export PATH="$ANDROID_SDK_ROOT/tools/bin:$PATH"
     export PATH="$ANDROID_SDK_ROOT/platform-tools:$PATH"
     export PATH="$(echo $ANDROID_SDK_ROOT/cmdline-tools/*/bin):$PATH"
-    export PATH="$(echo $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/*/bin):$PATH"
+    export PATH="$(echo $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/*/bin):$PATH"
   '';
 }

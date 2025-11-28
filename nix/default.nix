@@ -48,7 +48,7 @@ in stdenv.mkDerivation rec {
   ];
 
   ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
-  ANDROID_NDK_HOME = optionalString isAndroidBuild pkgs.androidPkgs.ndk;
+  ANDROID_NDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.ndk;
 
   NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${version}";
   XDG_CACHE_HOME = "/tmp";
