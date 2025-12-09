@@ -1,5 +1,7 @@
 mode = ScriptMode.Verbose
 
+import strutils
+
 # Package
 version = "0.1.0"
 author = "Waku Team"
@@ -62,9 +64,14 @@ task libsdsDynamicLinux, "Generate bindings":
 task libsdsDynamicMac, "Generate bindings":
   let outLibNameAndExt = "libsds.dylib"
   let name = "libsds"
+
+  let arch = getEnv("ARCH")
+  let sdkPath = staticExec("xcrun --show-sdk-path").strip()
+  let archFlags = (if arch == "arm64": "--cpu:arm64 --passC:\"-arch arm64\" --passL:\"-arch arm64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
+                   else: "--cpu:amd64 --passC:\"-arch x86_64\" --passL:\"-arch x86_64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\"")
   buildLibrary outLibNameAndExt,
     name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    archFlags & " -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE",
     "dynamic"
 
 task libsdsStaticWindows, "Generate bindings":
@@ -86,9 +93,14 @@ task libsdsStaticLinux, "Generate bindings":
 task libsdsStaticMac, "Generate bindings":
   let outLibNameAndExt = "libsds.a"
   let name = "libsds"
+
+  let arch = getEnv("ARCH")
+  let sdkPath = staticExec("xcrun --show-sdk-path").strip()
+  let archFlags = (if arch == "arm64": "--cpu:arm64 --passC:\"-arch arm64\" --passL:\"-arch arm64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
+                   else: "--cpu:amd64 --passC:\"-arch x86_64\" --passL:\"-arch x86_64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\"")
   buildLibrary outLibNameAndExt,
     name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    archFlags & " -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE",
     "static"
 
 # Build Mobile iOS
