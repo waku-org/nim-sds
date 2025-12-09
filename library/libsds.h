@@ -55,6 +55,9 @@ int SdsMarkDependenciesMet(void* ctx,
 
 int SdsStartPeriodicTasks(void* ctx, SdsCallBack callback, void* userData);
 
+// Configure log file path for nim-sds logging
+int SdsSetLogFile(const char* logFilePath);
+
 
 
 #ifdef __cplusplus

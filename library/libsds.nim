@@ -5,7 +5,7 @@
 when defined(linux):
   {.passl: "-Wl,-soname,libsds.so".}
 
-import std/[typetraits, tables, atomics], chronos, chronicles
+import std/[typetraits, tables, atomics], chronos, chronicles, os, times, strutils 
 import
   ./sds_thread/sds_thread,
   ./alloc,
@@ -104,13 +104,52 @@ proc libsdsNimMain() {.importc.}
 # To control when the library has been initialized
 var initialized: Atomic[bool]
 
-if defined(android):
-  # Redirect chronicles to Android System logs
+proc getLogFilePath(): string =
+  # Check for environment variable first, fallback to default location
+  let envPath = getEnv("SDS_LOG_FILE")
+  if envPath.len > 0:
+    return envPath
+  
+  # Default to a location that status-go can manage
+  let defaultDir = getEnv("SDS_LOG_DIR", "/tmp")
+  return joinPath(defaultDir, "nim-sds.log")
+
+proc writeToLogFile(logLevel: LogLevel, msg: LogOutputStr) {.raises: [].} =
+  try:
+    let logFile = getLogFilePath()
+    let timestamp = now().format("yyyy-MM-dd HH:mm:ss.fff")
+    let logLine = "[$1] [$2] $3\n".format(timestamp, $logLevel, $msg)
+    
+    # Create directory if it doesn't exist
+    let logDir = parentDir(logFile)
+    if not dirExists(logDir):
+      createDir(logDir)
+    
+    # Append to log file
+    let file = open(logFile, fmAppend)
+    defer: file.close()
+    file.write(logLine)
+  except:
+    # Fallback to console if file writing fails
+    echo "[nim-sds-fallback] ", logLevel, ": ", msg
+
+when defined(android):
   when compiles(defaultChroniclesStream.outputs[0].writer):
     defaultChroniclesStream.outputs[0].writer = proc(
         logLevel: LogLevel, msg: LogOutputStr
     ) {.raises: [].} =
       echo logLevel, msg
+else:
+  when compiles(defaultChroniclesStream.outputs[0].writer):
+    defaultChroniclesStream.outputs[0].writer = proc(
+        logLevel: LogLevel, msg: LogOutputStr
+    ) {.raises: [].} =
+      # Critical logs (ERROR, FATAL) are written to console
+      if logLevel >= LogLevel.ERROR:
+        echo "[nim-sds] ", logLevel, ": ", msg
+      else:
+        # All other logs are written to a file
+        writeToLogFile(logLevel, msg)
 
 proc initializeLibrary() {.exported.} =
   if not initialized.exchange(true):
@@ -321,6 +360,22 @@ proc SdsStartPeriodicTasks(
     callback,
     userData,
   )
+
+proc SdsSetLogFile(
+    logFilePath: cstring
+): cint {.dynlib, exportc.} =
+  ## Sets the log file path for nim-sds logging
+  ## This allows applications to configure where nim-sds logs should be written
+  initializeLibrary()
+  
+  if logFilePath == nil:
+    return RET_ERR
+  
+  try:
+    putEnv("SDS_LOG_FILE", $logFilePath)
+    return RET_OK
+  except:
+    return RET_ERR
 
 ### End of exported procs
 ################################################################################
