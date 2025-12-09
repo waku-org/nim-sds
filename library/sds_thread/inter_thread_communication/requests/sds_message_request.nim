@@ -63,7 +63,6 @@ proc process*(
     let messageBytes = self.message.toSeq()
 
     let (unwrappedMessage, missingDeps, channelId) = unwrapReceivedMessage(rm[], messageBytes).valueOr:
-      error "UNWRAP_MESSAGE failed", error = error
       return err("error processing UNWRAP_MESSAGE request: " & $error)
 
     let res = SdsUnwrapResponse(message: unwrappedMessage, missingDeps: missingDeps, channelId: channelId)
