@@ -62,9 +62,14 @@ task libsdsDynamicLinux, "Generate bindings":
 task libsdsDynamicMac, "Generate bindings":
   let outLibNameAndExt = "libsds.dylib"
   let name = "libsds"
+
+  let arch = hostCPU
+  let archFlags = (if arch == "arm64": "--cpu:arm64 --passC:\"-arch arm64\" --passL:\"-arch arm64\""
+                   else: "--cpu:amd64 --passC:\"-arch x86_64\" --passL:\"-arch x86_64\"")
+
   buildLibrary outLibNameAndExt,
     name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    archFlags & " -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE",
     "dynamic"
 
 task libsdsStaticWindows, "Generate bindings":
