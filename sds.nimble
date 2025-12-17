@@ -1,3 +1,5 @@
+import std/strformat, strutils
+
 mode = ScriptMode.Verbose
 
 # Package
@@ -62,9 +64,10 @@ task libsdsDynamicLinux, "Generate bindings":
 task libsdsDynamicMac, "Generate bindings":
   let outLibNameAndExt = "libsds.dylib"
   let name = "libsds"
+  let sdkPath = staticExec("xcrun --show-sdk-path").strip()
   buildLibrary outLibNameAndExt,
     name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    fmt"""--passC:"-isysroot {sdkPath}" -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
     "dynamic"
 
 task libsdsStaticWindows, "Generate bindings":
