@@ -40,6 +40,12 @@ proc buildLibrary(
         " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
         extra_params & " " & srcDir & name & ".nim"
 
+proc getArch(): string =
+  let arch = getEnv("ARCH")
+  if arch != "": return $arch
+  let (archFromUname, _) = gorgeEx("uname -m")
+  return $archFromUname
+
 # Tasks
 task test, "Run the test suite":
   exec "nim c -r tests/test_bloom.nim"
@@ -65,7 +71,7 @@ task libsdsDynamicMac, "Generate bindings":
   let outLibNameAndExt = "libsds.dylib"
   let name = "libsds"
 
-  let arch = getEnv("ARCH")
+  let arch = getArch()
   let sdkPath = staticExec("xcrun --show-sdk-path").strip()
   let archFlags = (if arch == "arm64": "--cpu:arm64 --passC:\"-arch arm64\" --passL:\"-arch arm64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
                    else: "--cpu:amd64 --passC:\"-arch x86_64\" --passL:\"-arch x86_64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\"")
@@ -94,7 +100,7 @@ task libsdsStaticMac, "Generate bindings":
   let outLibNameAndExt = "libsds.a"
   let name = "libsds"
 
-  let arch = getEnv("ARCH")
+  let arch = getArch()
   let sdkPath = staticExec("xcrun --show-sdk-path").strip()
   let archFlags = (if arch == "arm64": "--cpu:arm64 --passC:\"-arch arm64\" --passL:\"-arch arm64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
                    else: "--cpu:amd64 --passC:\"-arch x86_64\" --passL:\"-arch x86_64\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\"")
@@ -147,7 +153,7 @@ task libsdsIOS, "Build the mobile bindings for iOS":
 
 ### Mobile Android
 proc buildMobileAndroid(srcDir = ".", params = "") =
-  let cpu = getEnv("CPU")
+  let cpu = getArch()
 
   let outDir = "build/"
   if not dirExists outDir:
