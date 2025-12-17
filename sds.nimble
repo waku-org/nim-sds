@@ -67,7 +67,7 @@ task libsdsDynamicMac, "Generate bindings":
   let sdkPath = staticExec("xcrun --show-sdk-path").strip()
   buildLibrary outLibNameAndExt,
     name, "library/",
-    fmt"""--passC:"-isysroot {sdkPath}" -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
+    fmt"""--skipUserCfg:on --passC:"-isysroot {sdkPath}" -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
     "dynamic"
 
 task libsdsStaticWindows, "Generate bindings":
