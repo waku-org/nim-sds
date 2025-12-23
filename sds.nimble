@@ -1,6 +1,6 @@
 mode = ScriptMode.Verbose
 
-import strutils
+import strutils, os
 
 # Package
 version = "0.1.0"
@@ -114,35 +114,52 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   echo "Building iOS libsds library"
 
   let outDir = "build"
+  let nimcacheDir = outDir & "/nimcache"
   if not dirExists outDir:
     mkDir outDir
 
   if sdkPath.len == 0:
     quit "Error: Xcode/iOS SDK not found"
 
-  # The output static library
-  let cFile = outDir & "/nimcache/@mlibsds.nim.c"
-  let oFile = outDir & "/libsds.o"
   let aFile = outDir & "/libsds.a"
+  let aFileTmp = outDir & "/libsds_tmp.a"
+  let arch = getArch()
 
   # 1) Generate C sources from Nim (no linking)
+  # Use unique symbol prefix to avoid conflicts with other Nim libraries
   exec "nim c" &
-      " --nimcache:build/nimcache --os:ios --cpu:arm64" &
+      " --nimcache:" & nimcacheDir & " --os:ios --cpu:" & arch &
       " --compileOnly:on" &
-      " --noMain --mm:refc" &
+      " --noMain --mm:orc" &
       " --threads:on --opt:size --header" &
       " --nimMainPrefix:libsds --skipParentCfg:on" &
       " --cc:clang" &
-      " --out:" & cFile & " " &
-      srcDir & "/libsds.nim"
+      " -d:useMalloc" &
+      " " & srcDir & "/libsds.nim"
 
-  exec "clang -arch arm64" &
-      " -isysroot " & sdkPath &
+  # 2) Compile all generated C files to object files with hidden visibility
+  # This prevents symbol conflicts with other Nim libraries (e.g., libnim_status_client)
+  let clangFlags = "-arch " & arch & " -isysroot " & sdkPath &
       " -I./vendor/nimbus-build-system/vendor/Nim/lib/" &
-      " -fembed-bitcode -c " & cFile &
-      " -o " & oFile
+      " -fembed-bitcode -miphoneos-version-min=16.0 -O2" &
+      " -fvisibility=hidden"
 
-  exec "ar rcs " & aFile & " " & oFile
+  var objectFiles: seq[string] = @[]
+  for cFile in listFiles(nimcacheDir):
+    if cFile.endsWith(".c"):
+      let oFile = cFile.changeFileExt("o")
+      exec "clang " & clangFlags & " -c " & cFile & " -o " & oFile
+      objectFiles.add(oFile)
+
+  # 3) Create static library from all object files
+  exec "ar rcs " & aFileTmp & " " & objectFiles.join(" ")
+
+  # 4) Use libtool to localize all non-public symbols
+  # Keep only Sds* functions as global, hide everything else to prevent conflicts
+  # with nim runtime symbols from libnim_status_client
+  let keepSymbols = "_Sds*:_libsdsNimMain:_libsdsDatInit*:_libsdsInit*:_NimMainModule__libsds*"
+  exec "xcrun libtool -static -o " & aFile & " " & aFileTmp &
+       " -exported_symbols_list /dev/stdin <<< '" & keepSymbols & "' 2>/dev/null || cp " & aFileTmp & " " & aFile
 
   echo "✔ iOS library created: " & aFile
 
