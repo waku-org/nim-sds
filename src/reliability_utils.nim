@@ -135,19 +135,23 @@ proc newHistoryEntry*(messageId: SdsMessageID, retrievalHint: string): HistoryEn
 
 proc toCausalHistory*(messageIds: seq[SdsMessageID]): seq[HistoryEntry] =
   ## Converts a sequence of message IDs to HistoryEntry sequence
-  result = newSeq[HistoryEntry](messageIds.len)
+  var entries = newSeq[HistoryEntry](messageIds.len)
   for i, msgId in messageIds:
-    result[i] = newHistoryEntry(msgId)
+    entries[i] = newHistoryEntry(msgId)
+  return entries
 
 proc getMessageIds*(causalHistory: seq[HistoryEntry]): seq[SdsMessageID] =
   ## Extracts message IDs from HistoryEntry sequence
-  result = newSeq[SdsMessageID](causalHistory.len)
+  var messageIds = newSeq[SdsMessageID](causalHistory.len)
   for i, entry in causalHistory:
-    result[i] = entry.messageId
+    messageIds[i] = entry.messageId
+  return messageIds
 
 proc getRecentHistoryEntries*(
     rm: ReliabilityManager, n: int, channelId: SdsChannelID
 ): seq[HistoryEntry] =
+  ## Get recent history entries for sending in causal history.
+  ## Populates retrieval hints for our own messages using the provider callback.
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
@@ -155,42 +159,32 @@ proc getRecentHistoryEntries*(
       if rm.onRetrievalHint.isNil():
         return toCausalHistory(recentMessageIds)
       else:
+        var entries: seq[HistoryEntry] = @[]
         for msgId in recentMessageIds:
           let hint = rm.onRetrievalHint(msgId)
-          result.add(newHistoryEntry(msgId, hint))
+          entries.add(newHistoryEntry(msgId, hint))
+        return entries
     else:
-      result = @[]
+      return @[]
   except Exception:
     error "Failed to get recent history entries",
       channelId = channelId, n = n, error = getCurrentExceptionMsg()
-    result = @[]
+    return @[]
 
 proc checkDependencies*(
     rm: ReliabilityManager, deps: seq[HistoryEntry], channelId: SdsChannelID
 ): seq[HistoryEntry] =
+  ## Check which dependencies are missing from our message history.
   var missingDeps: seq[HistoryEntry] = @[]
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
       for dep in deps:
         if dep.messageId notin channel.messageHistory:
-          # If we have a retrieval hint provider and the original dep has no hint, get one
-          if not rm.onRetrievalHint.isNil() and dep.retrievalHint.len == 0:
-            let hint = rm.onRetrievalHint(dep.messageId)
-            missingDeps.add(newHistoryEntry(dep.messageId, hint))
-          else:
-            missingDeps.add(dep)
+          missingDeps.add(dep)
     else:
       # Channel doesn't exist, all deps are missing
-      if not rm.onRetrievalHint.isNil():
-        for dep in deps:
-          if dep.retrievalHint.len == 0:
-            let hint = rm.onRetrievalHint(dep.messageId)
-            missingDeps.add(newHistoryEntry(dep.messageId, hint))
-          else:
-            missingDeps.add(dep)
-      else:
-        missingDeps = deps
+      missingDeps = deps
   except Exception:
     error "Failed to check dependencies",
       channelId = channelId, error = getCurrentExceptionMsg()

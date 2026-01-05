@@ -126,9 +126,12 @@ proc onRetrievalHint(ctx: ptr SdsContext): RetrievalHintProvider =
     )
 
     if not isNil(hint) and hintLen > 0:
-      result = newSeq[byte](hintLen)
-      copyMem(addr result[0], hint, hintLen)
+      var hintBytes = newSeq[byte](hintLen)
+      copyMem(addr hintBytes[0], hint, hintLen)
       deallocShared(hint)
+      return hintBytes
+    
+    return @[]
 
 ### End of not-exported components
 ################################################################################

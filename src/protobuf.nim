@@ -1,5 +1,4 @@
 import libp2p/protobuf/minprotobuf
-import std/options
 import endians
 import ../src/[message, protobufutil, bloom, reliability_utils]
 
@@ -38,7 +37,7 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
 
   # Handle both old and new causal history formats
   var historyBuffers: seq[seq[byte]]
-  if pb.getRepeatedField(3, historyBuffers).isOk:
+  if pb.getRepeatedField(3, historyBuffers).isOk():
     # New format: repeated HistoryEntry
     for histBuffer in historyBuffers:
       let entryPb = initProtoBuffer(histBuffer)
@@ -52,7 +51,7 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
     # Try old format: repeated string
     var causalHistory: seq[SdsMessageID]
     let histResult = pb.getRepeatedField(3, causalHistory)
-    if histResult.isOk:
+    if histResult.isOk():
       msg.causalHistory = toCausalHistory(causalHistory)
 
   if not ?pb.getField(4, msg.channelId):

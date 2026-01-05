@@ -286,7 +286,7 @@ suite "Reliability Mechanisms":
     check unwrappedMsg2.causalHistory[0].messageId == id1
     check unwrappedMsg2.causalHistory[0].retrievalHint == cast[seq[byte]]("hint:" & id1)
 
-    # Create a message with a missing dependency
+    # Create a message with a missing dependency (no retrieval hint)
     let msg3 = SdsMessage(
       messageId: "msg3",
       lamportTimestamp: 3,
@@ -301,8 +301,26 @@ suite "Reliability Mechanisms":
     let (_, missingDeps3, _) = unwrapResult3.get()
     check missingDeps3.len == 1
     check missingDeps3[0].messageId == "missing-dep"
-    # The hint should be populated by the retrieval hint provider for missing dependencies
-    check missingDeps3[0].retrievalHint == cast[seq[byte]]("hint:missing-dep")
+    # The hint is empty because it was not provided by the remote sender
+    check missingDeps3[0].retrievalHint.len == 0
+    
+    # Test with a message that HAS a retrieval hint from remote
+    let msg4 = SdsMessage(
+      messageId: "msg4",
+      lamportTimestamp: 4,
+      causalHistory: @[newHistoryEntry("another-missing", cast[seq[byte]]("remote-hint"))],
+      channelId: testChannel,
+      content: @[byte(4)],
+      bloomFilter: @[],
+    )
+    let serialized4 = serializeMessage(msg4).get()
+    let unwrapResult4 = rm.unwrapReceivedMessage(serialized4)
+    check unwrapResult4.isOk()
+    let (_, missingDeps4, _) = unwrapResult4.get()
+    check missingDeps4.len == 1
+    check missingDeps4[0].messageId == "another-missing"
+    # The hint should be preserved from the remote sender
+    check missingDeps4[0].retrievalHint == cast[seq[byte]]("remote-hint")
 
 # Periodic task & Buffer management tests
 suite "Periodic Tasks & Buffer Management":
