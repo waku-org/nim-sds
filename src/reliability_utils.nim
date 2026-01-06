@@ -1,4 +1,4 @@
-import std/[times, locks, tables]
+import std/[times, locks, tables, sequtils]
 import chronicles, results
 import ./[rolling_bloom_filter, message]
 
@@ -129,23 +129,13 @@ proc newHistoryEntry*(messageId: SdsMessageID, retrievalHint: seq[byte] = @[]): 
   ## Creates a new HistoryEntry with optional retrieval hint
   HistoryEntry(messageId: messageId, retrievalHint: retrievalHint)
 
-proc newHistoryEntry*(messageId: SdsMessageID, retrievalHint: string): HistoryEntry =
-  ## Creates a new HistoryEntry with string retrieval hint
-  HistoryEntry(messageId: messageId, retrievalHint: cast[seq[byte]](retrievalHint))
-
 proc toCausalHistory*(messageIds: seq[SdsMessageID]): seq[HistoryEntry] =
-  ## Converts a sequence of message IDs to HistoryEntry sequence
-  var entries = newSeq[HistoryEntry](messageIds.len)
-  for i, msgId in messageIds:
-    entries[i] = newHistoryEntry(msgId)
-  return entries
+  ## Converts a sequence of message IDs to HistoryEntry sequence (for backward compatibility)
+  return messageIds.mapIt(newHistoryEntry(it))
 
 proc getMessageIds*(causalHistory: seq[HistoryEntry]): seq[SdsMessageID] =
   ## Extracts message IDs from HistoryEntry sequence
-  var messageIds = newSeq[SdsMessageID](causalHistory.len)
-  for i, entry in causalHistory:
-    messageIds[i] = entry.messageId
-  return messageIds
+  return causalHistory.mapIt(it.messageId)
 
 proc getRecentHistoryEntries*(
     rm: ReliabilityManager, n: int, channelId: SdsChannelID
