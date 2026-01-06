@@ -4,10 +4,14 @@ type
   SdsMessageID* = string
   SdsChannelID* = string
 
+  HistoryEntry* = object
+    messageId*: SdsMessageID
+    retrievalHint*: seq[byte]  ## Optional hint for efficient retrieval (e.g., Waku message hash)
+
   SdsMessage* = object
     messageId*: SdsMessageID
     lamportTimestamp*: int64
-    causalHistory*: seq[SdsMessageID]
+    causalHistory*: seq[HistoryEntry]
     channelId*: SdsChannelID
     content*: seq[byte]
     bloomFilter*: seq[byte]
