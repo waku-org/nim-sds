@@ -63,31 +63,47 @@ var
   ctxPoolLock: Lock
 
 proc acquireCtx(callback: SdsCallBack, userData: pointer): ptr SdsContext =
+  echo "acquireCtx called 1"
   ctxPoolLock.acquire()
+  echo "acquireCtx called 2"
   defer: ctxPoolLock.release()
+  echo "acquireCtx called 3"
 
   for i in 0 ..< ctxPool.len:
+    echo "acquireCtx called 4, i=" & $i
     if ctxPool[i] == nil:
+      echo "acquireCtx called 5, i=" & $i
       ctxPool[i] = sds_thread.createSdsThread().valueOr:
+        echo "acquireCtx called 6, i=" & $i
         let msg = "Error in createSdsThread: " & $error
         callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+        echo "acquireCtx called 7, i=" & $i
         return nil
+      echo "acquireCtx called 8, i=" & $i
       return ctxPool[i]
+  echo "acquireCtx called 9"
 
   let msg = "Cannot acquire more contexts than maximum of: " & $MaxNumContexts
   callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+  echo "acquireCtx called 10"
   return nil
 
 proc releaseCtx(ctx: ptr SdsContext) =
+  echo "releaseCtx called"
   ctxPoolLock.acquire()
+  echo "releaseCtx called 2"
   defer: ctxPoolLock.release()
+  echo "releaseCtx called 3"
   for i in 0 ..< ctxPool.len:
+    echo "releaseCtx called 4, i=" & $i
     if ctxPool[i] == ctx:
+      echo "releaseCtx called 5, i=" & $i
       ctxPool[i].userData = nil
       ctxPool[i].eventCallback = nil
       ctxPool[i].eventUserData = nil
       ctxPool[i] = nil
       break
+  echo "releaseCtx called 6"
 
 proc handleRequest(
     ctx: ptr SdsContext,
