@@ -140,6 +140,7 @@ proc initializeLibrary() {.exported.} =
     ## Every Nim library needs to call `<yourprefix>NimMain` once exactly, to initialize the Nim runtime.
     ## Being `<yourprefix>` the value given in the optional compilation flag --nimMainPrefix:yourprefix
     libsdsNimMain()
+    ctxPoolLock.initLock() # ensure the lock is initialized once (fix Windows crash)
   when declared(setupForeignThreadGc):
     setupForeignThreadGc()
   when declared(nimGC_setStackBottom):
