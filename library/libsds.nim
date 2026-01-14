@@ -105,7 +105,7 @@ proc onMessageSent(ctx: ptr SdsContext): MessageSentCallback =
       $JsonMessageSentEvent.new(messageId, channelId)
 
 proc onMissingDependencies(ctx: ptr SdsContext): MissingDependenciesCallback =
-  return proc(messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID) {.gcsafe.} =
+  return proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
     callEventCallback(ctx, "onMissingDependencies"):
       $JsonMissingDependenciesEvent.new(messageId, missingDeps, channelId)
 
@@ -113,6 +113,25 @@ proc onPeriodicSync(ctx: ptr SdsContext): PeriodicSyncCallback =
   return proc() {.gcsafe.} =
     callEventCallback(ctx, "onPeriodicSync"):
       $JsonPeriodicSyncEvent.new()
+
+proc onRetrievalHint(ctx: ptr SdsContext): RetrievalHintProvider =
+  return proc(messageId: SdsMessageID): seq[byte] {.gcsafe.} =
+    if isNil(ctx.retrievalHintProvider):
+      return @[]
+
+    var hint: cstring
+    var hintLen: csize_t
+    cast[SdsRetrievalHintProvider](ctx.retrievalHintProvider)(
+      messageId.cstring, addr hint, addr hintLen, ctx.retrievalHintUserData
+    )
+
+    if not isNil(hint) and hintLen > 0:
+      var hintBytes = newSeq[byte](hintLen)
+      copyMem(addr hintBytes[0], hint, hintLen)
+      deallocShared(hint)
+      return hintBytes
+    
+    return @[]
 
 ### End of not-exported components
 ################################################################################
@@ -176,6 +195,7 @@ proc SdsNewReliabilityManager(
     messageSentCb: onMessageSent(ctx),
     missingDependenciesCb: onMissingDependencies(ctx),
     periodicSyncCb: onPeriodicSync(ctx),
+    retrievalHintProvider: onRetrievalHint(ctx),
   )
 
   let retCode = handleRequest(
@@ -199,6 +219,13 @@ proc SdsSetEventCallback(
   initializeLibrary()
   ctx[].eventCallback = cast[pointer](callback)
   ctx[].eventUserData = userData
+
+proc SdsSetRetrievalHintProvider(
+    ctx: ptr SdsContext, callback: SdsRetrievalHintProvider, userData: pointer
+) {.dynlib, exportc.} =
+  initializeLibrary()
+  ctx[].retrievalHintProvider = cast[pointer](callback)
+  ctx[].retrievalHintUserData = userData
 
 proc SdsCleanupReliabilityManager(
     ctx: ptr SdsContext, callback: SdsCallBack, userData: pointer

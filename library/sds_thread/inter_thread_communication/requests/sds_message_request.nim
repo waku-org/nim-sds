@@ -1,4 +1,4 @@
-import std/[json, strutils, net, sequtils]
+import std/[json, strutils, net, sequtils, base64]
 import chronos, chronicles, results
 
 import ../../../alloc
@@ -17,7 +17,7 @@ type SdsMessageRequest* = object
 
 type SdsUnwrapResponse* = object
   message*: seq[byte]
-  missingDeps*: seq[SdsMessageID]
+  missingDeps*: seq[HistoryEntry]
   channelId*: string
 
 proc createShared*(
@@ -62,12 +62,22 @@ proc process*(
   of UNWRAP_MESSAGE:
     let messageBytes = self.message.toSeq()
 
-    let (unwrappedMessage, missingDeps, channelId) = unwrapReceivedMessage(rm[], messageBytes).valueOr:
+    let (unwrappedMessage, missingDeps, extractedChannelId) = unwrapReceivedMessage(rm[], messageBytes).valueOr:
       return err("error processing UNWRAP_MESSAGE request: " & $error)
 
-    let res = SdsUnwrapResponse(message: unwrappedMessage, missingDeps: missingDeps, channelId: channelId)
+    let res = SdsUnwrapResponse(message: unwrappedMessage, missingDeps: missingDeps, channelId: extractedChannelId)
 
     # return the result as a json string
-    return ok($(%*(res)))
+    var node = newJObject()
+    node["message"] = %*res.message
+    node["channelId"] = %*extractedChannelId
+    var missingDepsNode = newJArray()
+    for dep in res.missingDeps:
+      var depNode = newJObject()
+      depNode["messageId"] = %*dep.messageId
+      depNode["retrievalHint"] = %*encode(dep.retrievalHint)
+      missingDepsNode.add(depNode)
+    node["missingDeps"] = missingDepsNode
+    return ok($node)
 
   return ok("")
