@@ -60,13 +60,10 @@ template callEventCallback(ctx: ptr SdsContext, eventName: string, body: untyped
 const MaxNumContexts = 32
 var
   ctxPool: array[MaxNumContexts, ptr SdsContext]
-  ctxPoolLock: Lock
 
 proc acquireCtx(callback: SdsCallBack, userData: pointer): ptr SdsContext =
   echo "acquireCtx called 1"
-  ctxPoolLock.acquire()
   echo "acquireCtx called 2"
-  defer: ctxPoolLock.release()
   echo "acquireCtx called 3"
 
   for i in 0 ..< ctxPool.len:
@@ -90,9 +87,7 @@ proc acquireCtx(callback: SdsCallBack, userData: pointer): ptr SdsContext =
 
 proc releaseCtx(ctx: ptr SdsContext) =
   echo "releaseCtx called"
-  ctxPoolLock.acquire()
   echo "releaseCtx called 2"
-  defer: ctxPoolLock.release()
   echo "releaseCtx called 3"
   for i in 0 ..< ctxPool.len:
     echo "releaseCtx called 4, i=" & $i
