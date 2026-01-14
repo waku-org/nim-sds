@@ -57,28 +57,37 @@ template callEventCallback(ctx: ptr SdsContext, eventName: string, body: untyped
         RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), ctx[].eventUserData
       )
 
+const MaxNumContexts = 32
 var
-  ctxPool: seq[ptr SdsContext]
+  ctxPool: array[MaxNumContexts, ptr SdsContext]
   ctxPoolLock: Lock
 
 proc acquireCtx(callback: SdsCallBack, userData: pointer): ptr SdsContext =
   ctxPoolLock.acquire()
   defer: ctxPoolLock.release()
-  if ctxPool.len > 0:
-    result = ctxPool.pop()
-  else:
-    result = sds_thread.createSdsThread().valueOr:
-      let msg = "Error in createSdsThread: " & $error
-      callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-      return nil
+
+  for i in 0 ..< ctxPool.len:
+    if ctxPool[i] == nil:
+      ctxPool[i] = sds_thread.createSdsThread().valueOr:
+        let msg = "Error in createSdsThread: " & $error
+        callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+        return nil
+      return ctxPool[i]
+
+  let msg = "Cannot acquire more contexts than maximum of: " & $MaxNumContexts
+  callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+  return nil
 
 proc releaseCtx(ctx: ptr SdsContext) =
   ctxPoolLock.acquire()
   defer: ctxPoolLock.release()
-  ctx.userData = nil
-  ctx.eventCallback = nil
-  ctx.eventUserData = nil
-  ctxPool.add(ctx)
+  for i in 0 ..< ctxPool.len:
+    if ctxPool[i] == ctx:
+      ctxPool[i].userData = nil
+      ctxPool[i].eventCallback = nil
+      ctxPool[i].eventUserData = nil
+      ctxPool[i] = nil
+      break
 
 proc handleRequest(
     ctx: ptr SdsContext,
