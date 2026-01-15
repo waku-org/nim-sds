@@ -62,23 +62,32 @@ var
   ctxPoolLock: Lock
 
 proc acquireCtx(callback: SdsCallBack, userData: pointer): ptr SdsContext =
+  echo "AAAA acquireCtx 1"
   ctxPoolLock.acquire()
+  echo "AAAA acquireCtx 2"
   defer: ctxPoolLock.release()
+  echo "AAAA acquireCtx 3"
   if ctxPool.len > 0:
+    echo "AAAA acquireCtx 4"
     result = ctxPool.pop()
   else:
+    echo "AAAA acquireCtx 5"
     result = sds_thread.createSdsThread().valueOr:
       let msg = "Error in createSdsThread: " & $error
       callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
       return nil
 
 proc releaseCtx(ctx: ptr SdsContext) =
+  echo "AAAA releaseCtx 1"
   ctxPoolLock.acquire()
+  echo "AAAA releaseCtx 2"
   defer: ctxPoolLock.release()
+  echo "AAAA releaseCtx 3"
   ctx.userData = nil
   ctx.eventCallback = nil
   ctx.eventUserData = nil
   ctxPool.add(ctx)
+  echo "AAAA releaseCtx 4"
 
 proc handleRequest(
     ctx: ptr SdsContext,
