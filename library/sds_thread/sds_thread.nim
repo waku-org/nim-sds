@@ -88,6 +88,8 @@ proc destroySdsThread*(ctx: ptr SdsContext): Result[void, string] =
   ?ctx.reqReceivedSignal.close()
   freeShared(ctx)
 
+  ?shutdown()
+
   return ok()
 
 proc sendRequestToSdsThread*(
