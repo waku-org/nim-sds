@@ -7,6 +7,7 @@ import chronicles, chronos, chronos/threadsync, taskpools/channels_spsc_single, 
 import
   ../ffi_types,
   ./inter_thread_communication/sds_thread_request,
+  ../alloc,
   ../../src/[reliability_utils]
 
 type SdsContext* = object
@@ -21,6 +22,7 @@ type SdsContext* = object
   eventCallback*: pointer
   eventUserdata*: pointer
   running: Atomic[bool] # To control when the thread is running
+  threadErrorMsg: cstring # to store any error message from the thread
 
 proc runSds(ctx: ptr SdsContext) {.async.} =
   ## This is the worker body. This runs the SDS instance
@@ -51,6 +53,18 @@ proc runSds(ctx: ptr SdsContext) {.async.} =
 proc run(ctx: ptr SdsContext) {.thread.} =
   ## Launch sds worker
   waitFor runSds(ctx)
+
+  ctx.reqSignal.close().isOkOr:
+    ctx.threadErrorMsg = alloc("error closing reqSignal: " & $error)
+    return
+
+  ctx.reqReceivedSignal.close().isOkOr:
+    ctx.threadErrorMsg = alloc("error closing reqReceivedSignal: " & $error)
+    return
+
+  shutdown().isOkOr:
+    ctx.threadErrorMsg = alloc("error calling shutdown: " & $error)
+    return
 
 proc createSdsThread*(): Result[ptr SdsContext, string] =
   ## This proc is called from the main thread and it creates
@@ -83,12 +97,12 @@ proc destroySdsThread*(ctx: ptr SdsContext): Result[void, string] =
     return err("failed to signal reqSignal on time in destroySdsThread")
 
   joinThread(ctx.thread)
-  ctx.lock.deinitLock()
-  ?ctx.reqSignal.close()
-  ?ctx.reqReceivedSignal.close()
-  freeShared(ctx)
 
-  ?shutdown()
+  if ctx.threadErrorMsg.len > 0:
+    return err("SDS thread error: " & $ctx.threadErrorMsg)
+
+  ctx.lock.deinitLock()
+  freeShared(ctx)
 
   return ok()
 
