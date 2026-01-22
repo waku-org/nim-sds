@@ -98,8 +98,10 @@ proc destroySdsThread*(ctx: ptr SdsContext): Result[void, string] =
 
   joinThread(ctx.thread)
 
-  if ctx.threadErrorMsg.len > 0:
-    return err("SDS thread error: " & $ctx.threadErrorMsg)
+  if ctx.threadErrorMsg.isNil() == false and ctx.threadErrorMsg.len > 0:
+    let errorMsg = $ctx.threadErrorMsg
+    dealloc(ctx.threadErrorMsg)
+    return err("SDS thread error: " & errorMsg)
 
   ctx.lock.deinitLock()
   freeShared(ctx)
