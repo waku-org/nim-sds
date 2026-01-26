@@ -47,4 +47,5 @@ proc shutdown*(): Result[void, string] {.raises: [].} =
   ## be used again.
 
   let disp = getThreadDispatcher()
+  ? closeDispatcher(disp)
   return ok()
