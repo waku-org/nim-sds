@@ -183,7 +183,7 @@ proc buildMobileAndroid(srcDir = ".", params = "") =
   exec "nim c" & " --out:" & outDir &
     "/libsds.so --threads:on --app:lib --opt:size --noMain --mm:refc --nimMainPrefix:libsds " &
     "-d:chronicles_sinks=textlines[dynamic] --header --passL:-L" & outdir &
-    " --passL:-llog --cpu:" & cpu & " --os:android -d:androidNDK " & extra_params & " " &
+    " --passL:-llog --cpu:" & cpu & " --os:android -d:androidNDK -d:chronosEventEngine=epoll " & extra_params & " " &
     srcDir & "/libsds.nim"
 
 task libsdsAndroid, "Build the mobile bindings for Android":
