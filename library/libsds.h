@@ -20,6 +20,8 @@ extern "C" {
 
 typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* userData);
 
+typedef void (*SdsRetrievalHintProvider) (const char* messageId, char** hint, size_t* hintLen, void* userData);
+
 
 // --- Core API Functions ---
 
@@ -27,6 +29,8 @@ typedef void (*SdsCallBack) (int callerRet, const char* msg, size_t len, void* u
 void* SdsNewReliabilityManager(SdsCallBack callback, void* userData);
 
 void SdsSetEventCallback(void* ctx, SdsCallBack callback, void* userData);
+
+void SdsSetRetrievalHintProvider(void* ctx, SdsRetrievalHintProvider callback, void* userData);
 
 int SdsCleanupReliabilityManager(void* ctx, SdsCallBack callback, void* userData);
 

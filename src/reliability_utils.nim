@@ -1,4 +1,4 @@
-import std/[times, locks, tables]
+import std/[times, locks, tables, sequtils]
 import chronicles, results
 import ./[rolling_bloom_filter, message]
 
@@ -10,8 +10,10 @@ type
     proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
 
   MissingDependenciesCallback* = proc(
-    messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
+    messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID
   ) {.gcsafe.}
+
+  RetrievalHintProvider* = proc(messageId: SdsMessageID): seq[byte] {.gcsafe.}
 
   PeriodicSyncCallback* = proc() {.gcsafe, raises: [].}
 
@@ -20,6 +22,7 @@ type
     messageSentCb*: MessageSentCallback
     missingDependenciesCb*: MissingDependenciesCallback
     periodicSyncCb*: PeriodicSyncCallback
+    retrievalHintProvider*: RetrievalHintProvider
 
   ReliabilityConfig* = object
     bloomFilterCapacity*: int
@@ -45,9 +48,10 @@ type
     onMessageReady*: proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
     onMessageSent*: proc(messageId: SdsMessageID, channelId: SdsChannelID) {.gcsafe.}
     onMissingDependencies*: proc(
-      messageId: SdsMessageID, missingDeps: seq[SdsMessageID], channelId: SdsChannelID
+      messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID
     ) {.gcsafe.}
     onPeriodicSync*: PeriodicSyncCallback
+    onRetrievalHint*: RetrievalHintProvider
 
   ReliabilityError* {.pure.} = enum
     reInvalidArgument
@@ -120,31 +124,56 @@ proc updateLamportTimestamp*(
     error "Failed to update lamport timestamp",
       channelId = channelId, msgTs = msgTs, error = getCurrentExceptionMsg()
 
-proc getRecentSdsMessageIDs*(
+# Helper functions for HistoryEntry
+proc newHistoryEntry*(messageId: SdsMessageID, retrievalHint: seq[byte] = @[]): HistoryEntry =
+  ## Creates a new HistoryEntry with optional retrieval hint
+  HistoryEntry(messageId: messageId, retrievalHint: retrievalHint)
+
+proc toCausalHistory*(messageIds: seq[SdsMessageID]): seq[HistoryEntry] =
+  ## Converts a sequence of message IDs to HistoryEntry sequence (for backward compatibility)
+  return messageIds.mapIt(newHistoryEntry(it))
+
+proc getMessageIds*(causalHistory: seq[HistoryEntry]): seq[SdsMessageID] =
+  ## Extracts message IDs from HistoryEntry sequence
+  return causalHistory.mapIt(it.messageId)
+
+proc getRecentHistoryEntries*(
     rm: ReliabilityManager, n: int, channelId: SdsChannelID
-): seq[SdsMessageID] =
+): seq[HistoryEntry] =
+  ## Get recent history entries for sending in causal history.
+  ## Populates retrieval hints for our own messages using the provider callback.
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
-      result = channel.messageHistory[max(0, channel.messageHistory.len - n) .. ^1]
+      let recentMessageIds = channel.messageHistory[max(0, channel.messageHistory.len - n) .. ^1]
+      if rm.onRetrievalHint.isNil():
+        return toCausalHistory(recentMessageIds)
+      else:
+        var entries: seq[HistoryEntry] = @[]
+        for msgId in recentMessageIds:
+          let hint = rm.onRetrievalHint(msgId)
+          entries.add(newHistoryEntry(msgId, hint))
+        return entries
     else:
-      result = @[]
+      return @[]
   except Exception:
-    error "Failed to get recent message IDs",
+    error "Failed to get recent history entries",
       channelId = channelId, n = n, error = getCurrentExceptionMsg()
-    result = @[]
+    return @[]
 
 proc checkDependencies*(
-    rm: ReliabilityManager, deps: seq[SdsMessageID], channelId: SdsChannelID
-): seq[SdsMessageID] =
-  var missingDeps: seq[SdsMessageID] = @[]
+    rm: ReliabilityManager, deps: seq[HistoryEntry], channelId: SdsChannelID
+): seq[HistoryEntry] =
+  ## Check which dependencies are missing from our message history.
+  var missingDeps: seq[HistoryEntry] = @[]
   try:
     if channelId in rm.channels:
       let channel = rm.channels[channelId]
-      for depId in deps:
-        if depId notin channel.messageHistory:
-          missingDeps.add(depId)
+      for dep in deps:
+        if dep.messageId notin channel.messageHistory:
+          missingDeps.add(dep)
     else:
+      # Channel doesn't exist, all deps are missing
       missingDeps = deps
   except Exception:
     error "Failed to check dependencies",
