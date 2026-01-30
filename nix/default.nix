@@ -1,14 +1,14 @@
 {
-  config ? {},
-  pkgs ? import <nixpkgs> { },
+  pkgs,
   src ? ../.,
-  targets ? ["libsds-android-arm64"],
+  # Nimbus-build-system package.
+  nim ? null,
+  # Options: 0,1,2
   verbosity ? 2,
-  useSystemNim ? true,
-  quickAndDirty ? true,
-  stableSystems ? [
-    "x86_64-linux" "aarch64-linux"
-  ]
+  # Make targets
+  targets ? ["libsds-android-arm64"],
+  # These are the only platforms tested in CI and considered stable.
+  stableSystems ? ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"],
 }:
 
 assert pkgs.lib.assertMsg ((src.submodules or true) == true)
@@ -22,55 +22,49 @@ let
   containsAndroid = s: (match ".*android.*" s) != null;
   isAndroidBuild = any containsAndroid targets;
 
-  version = substring 0 8 (src.sourceInfo.rev or "dirty");
+  tools = callPackage ./tools.nix {};
 
-in stdenv.mkDerivation rec {
+  revision = substring 0 8 (src.rev or src.dirtyRev or "00000000");
+  version = tools.findKeyValue "^version = \"([a-f0-9.-]+)\"$" ../sds.nimble;
+
+in stdenv.mkDerivation {
   pname = "nim-sds";
-  inherit src version;
+  inherit src;
+  version = "${version}-${revision}";
+
+  env = {
+    NIMFLAGS = "-d:disableMarchNative";
+    ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
+    ANDROID_NDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.ndk;
+  };
 
   buildInputs = with pkgs; [
-    openssl
-    gmp
-    zip
+    openssl gmp zip
   ];
 
   # Dependencies that should only exist in the build environment.
-  nativeBuildInputs = let
-    # Fix for Nim compiler calling 'git rev-parse' and 'lsb_release'.
-    fakeGit = writeScriptBin "git" "echo ${version}";
-  in with pkgs; [
-    cmake
-    which
-    nim-unwrapped-2_2
-    fakeGit
+  nativeBuildInputs = with pkgs; [
+    nim cmake which patchelf
   ] ++ optionals stdenv.isLinux [
     pkgs.lsb-release
   ];
 
-  ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
-  ANDROID_NDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.ndk;
-
-  NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${version}";
-  XDG_CACHE_HOME = "/tmp";
-
   makeFlags = targets ++ [
     "V=${toString verbosity}"
+    # Built from nimbus-build-system via flake.
     "USE_SYSTEM_NIM=1"
   ];
 
   configurePhase = ''
-    patchShebangs . vendor/nimbus-build-system > /dev/null
-    make nimbus-build-system-paths
+    # Avoid /tmp write errors.
+    export XDG_CACHE_HOME=$TMPDIR/cache
+    patchShebangs . vendor/nimbus-build-system/scripts
     make nimbus-build-system-nimble-dir
-  '';
-
-  preBuild = ''
-    ln -s sds.nimble sds.nims
   '';
 
   installPhase = let
     androidManifest = ''
-      <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.waku.${pname}\" />
+      <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.waku.nim-sds\" />
     '';
   in if isAndroidBuild then ''
     mkdir -p $out/jni
@@ -88,6 +82,6 @@ in stdenv.mkDerivation rec {
     description = "Nim implementation of the e2e reliability protocol";
     homepage = "https://github.com/status-im/nim-sds";
     license = licenses.mit;
-    platforms = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"];
+    platforms = stableSystems;
   };
 }

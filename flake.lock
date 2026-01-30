@@ -1,5 +1,27 @@
 {
   "nodes": {
+    "nimbusBuildSystem": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1769685810,
+        "narHash": "sha256-mANqcQcRXb08ZR8WF6SoyVrL/nXUePtMZfpNx25BlLI=",
+        "ref": "refs/heads/master",
+        "rev": "0e7a764edae92b224326b3700f062702489ce2b4",
+        "revCount": 238,
+        "submodules": true,
+        "type": "git",
+        "url": "file:./vendor/nimbus-build-system"
+      },
+      "original": {
+        "submodules": true,
+        "type": "git",
+        "url": "file:./vendor/nimbus-build-system"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1757590060,
@@ -18,6 +40,7 @@
     },
     "root": {
       "inputs": {
+        "nimbusBuildSystem": "nimbusBuildSystem",
         "nixpkgs": "nixpkgs"
       }
     }
