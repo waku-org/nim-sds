@@ -1,43 +1,45 @@
-mode = ScriptMode.Verbose
-
 import strutils, os
 
 # Package
-version = "0.1.0"
-author = "Waku Team"
-description = "E2E Reliability Protocol API"
+version = "0.2.4"
+author = "Logos Messaging Team"
+description = "E2E Scalable Data Sync API"
 license = "MIT"
-srcDir = "src"
+srcDir = "sds"
 
 # Dependencies
-requires "nim >= 2.2.4",
-  "chronicles", "chronos", "stew", "stint", "metrics", "libp2p", "results"
+requires "nim >= 2.2.6"
+requires "chronos >= 4.0.4"
+requires "libp2p >= 1.15.1"
+requires "chronicles"
+requires "stew"
+requires "stint"
+requires "metrics"
+requires "results"
+requires "taskpools >= 0.1.0" ## This should be removed when using nim-ffi dependency
 
 proc buildLibrary(
     outLibNameAndExt: string,
     name: string,
     srcDir = "./",
-    params = "",
+    extra_params = "",
     `type` = "static",
 ) =
   if not dirExists "build":
     mkDir "build"
-  # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
+
   if `type` == "static":
     exec "nim c" & " --out:build/" & outLibNameAndExt &
-      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
+      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
       extra_params & " " & srcDir & name & ".nim"
   else:
     when defined(windows):
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:off " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
         extra_params & " " & srcDir & name & ".nim"
     else:
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
         extra_params & " " & srcDir & name & ".nim"
 
 proc getArch(): string =
@@ -169,16 +171,12 @@ task libsdsIOS, "Build the mobile bindings for iOS":
   buildMobileIOS srcDir, sdkPath
 
 ### Mobile Android
-proc buildMobileAndroid(srcDir = ".", params = "") =
+proc buildMobileAndroid(srcDir = ".", extra_params = "") =
   let cpu = getArch()
 
   let outDir = "build/"
   if not dirExists outDir:
     mkDir outDir
-
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
 
   exec "nim c" & " --out:" & outDir &
     "/libsds.so --threads:on --app:lib --opt:size --noMain --mm:refc --nimMainPrefix:libsds " &

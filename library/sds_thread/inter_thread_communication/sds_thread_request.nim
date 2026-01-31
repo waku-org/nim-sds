@@ -7,7 +7,7 @@ import chronos, chronos/threadsync
 import
   ../../ffi_types,
   ./requests/[sds_lifecycle_request, sds_message_request, sds_dependencies_request],
-  ../../../src/[reliability_utils]
+  sds/sds_utils
 
 type RequestType* {.pure.} = enum
   LIFECYCLE

@@ -1,8 +1,6 @@
 {
   pkgs,
   src ? ../.,
-  # Nimbus-build-system package.
-  nim ? null,
   # Options: 0,1,2
   verbosity ? 2,
   # Make targets
@@ -10,9 +8,6 @@
   # These are the only platforms tested in CI and considered stable.
   stableSystems ? ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"],
 }:
-
-assert pkgs.lib.assertMsg ((src.submodules or true) == true)
-  "Unable to build without submodules. Append '?submodules=1#' to the URI.";
 
 let
   inherit (pkgs) stdenv lib writeScriptBin callPackage;
@@ -27,6 +22,10 @@ let
   revision = substring 0 8 (src.rev or src.dirtyRev or "00000000");
   version = tools.findKeyValue "^version = \"([a-f0-9.-]+)\"$" ../sds.nimble;
 
+  nimbleDeps = callPackage ./deps.nix {
+    inherit src version revision;
+  };
+
 in stdenv.mkDerivation {
   pname = "nim-sds";
   inherit src;
@@ -39,27 +38,28 @@ in stdenv.mkDerivation {
   };
 
   buildInputs = with pkgs; [
-    openssl gmp zip
+    openssl gmp zip nim git nimble
   ];
 
   # Dependencies that should only exist in the build environment.
   nativeBuildInputs = with pkgs; [
-    nim cmake which patchelf
+    nim cmake which patchelf nimbleDeps
   ] ++ optionals stdenv.isLinux [
     pkgs.lsb-release
   ];
 
   makeFlags = targets ++ [
     "V=${toString verbosity}"
-    # Built from nimbus-build-system via flake.
-    "USE_SYSTEM_NIM=1"
   ];
 
+  # Provide dependencies via Nimble deps derivation.
   configurePhase = ''
-    # Avoid /tmp write errors.
-    export XDG_CACHE_HOME=$TMPDIR/cache
-    patchShebangs . vendor/nimbus-build-system/scripts
-    make nimbus-build-system-nimble-dir
+    export NIMBLE_DIR=$NIX_BUILD_TOP/nimbledeps
+    cp -r ${nimbleDeps}/nimbledeps $NIMBLE_DIR
+    cp ${nimbleDeps}/nimble.paths ./
+    chmod 775 -R $NIMBLE_DIR
+    # Fix relative paths to absolute paths
+    sed -i "s|./nimbledeps|$NIMBLE_DIR|g" nimble.paths
   '';
 
   installPhase = let
@@ -74,7 +74,7 @@ in stdenv.mkDerivation {
     zip -r libwaku.aar *
   '' else ''
     mkdir -p $out/lib -p $out/include
-    cp build/* $out/lib/
+    cp build/lib* $out/lib/
     cp library/libsds.h $out/include/
   '';
 

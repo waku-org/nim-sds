@@ -1,6 +1,8 @@
 import std/[times, locks, tables, sets, options]
 import chronos, results, chronicles
-import ./[message, protobuf, reliability_utils, rolling_bloom_filter]
+import sds/[message, protobuf, sds_utils, rolling_bloom_filter]
+
+export message, protobuf, sds_utils, rolling_bloom_filter
 
 proc newReliabilityManager*(
     config: ReliabilityConfig = defaultConfig()

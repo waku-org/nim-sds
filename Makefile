@@ -1,48 +1,12 @@
 .PHONY: libsds deps
 
-export BUILD_SYSTEM_DIR := vendor/nimbus-build-system
 LINK_PCRE := 0
-
-# we don't want an error here, so we can handle things later, in the ".DEFAULT" target
--include $(BUILD_SYSTEM_DIR)/makefiles/variables.mk
-
-nimbus-build-system-nimble-dir:
-	NIMBLE_DIR="$(CURDIR)/$(NIMBLE_DIR)" \
-	PWD_CMD="$(PWD)" \
-	$(CURDIR)/scripts/generate_nimble_links.sh
-
-ifeq ($(NIM_PARAMS),)
-# "variables.mk" was not included, so we update the submodules.
-GIT_SUBMODULE_UPDATE := git submodule update --init --recursive
-.DEFAULT:
-	+@ echo -e "Git submodules not found. Running '$(GIT_SUBMODULE_UPDATE)'.\n"; \
-		$(GIT_SUBMODULE_UPDATE); \
-		echo
-# Now that the included *.mk files appeared, and are newer than this file, Make will restart itself:
-# https://www.gnu.org/software/make/manual/make.html#Remaking-Makefiles
-#
-# After restarting, it will execute its original goal, so we don't have to start a child Make here
-# with "$(MAKE) $(MAKECMDGOALS)". Isn't hidden control flow great?
-
-else # "variables.mk" was included. Business as usual until the end of this file.
 
 # default target, because it's the first one that doesn't start with '.'
 all: | libsds
 
-sds.nims:
-	ln -s sds.nimble $@
-
-update: | update-common
-	rm -rf sds.nims && \
-		$(MAKE) sds.nims $(HANDLE_OUTPUT)
-
 clean:
 	rm -rf build
-
-deps: | deps-common sds.nims
-
-# must be included after the default target
--include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
 
 ## Git version
 GIT_VERSION ?= $(shell git describe --abbrev=6 --always --tags)
@@ -78,8 +42,8 @@ else ifeq ($(detected_OS),Linux)
 	BUILD_COMMAND := $(BUILD_COMMAND)Linux
 endif
 
-libsds: | deps
-	$(ENV_SCRIPT) nim $(BUILD_COMMAND) $(NIM_PARAMS) sds.nims
+libsds:
+	nimble --verbose $(BUILD_COMMAND) $(NIM_PARAMS) sds.nimble
 
 #####################
 ## Mobile Bindings ##
@@ -119,14 +83,13 @@ build-libsds-for-android-arch:
 	ARCH_DIRNAME=$(ARCH_DIRNAME) \
 	ANDROID_ARCH=$(ANDROID_ARCH) \
 	ANDROID_TOOLCHAIN_DIR=$(ANDROID_TOOLCHAIN_DIR) \
-	$(ENV_SCRIPT) \
-	nim libsdsAndroid $(NIM_PARAMS) sds.nims
+	nimble libsdsAndroid $(NIM_PARAMS) sds.nimble
 
 libsds-android-arm64: ANDROID_ARCH=aarch64-linux-android
 libsds-android-arm64: ARCH=arm64
 libsds-android-arm64: ABIDIR=arm64-v8a
 libsds-android-arm64: ARCH_DIRNAME=aarch64-linux-android
-libsds-android-arm64: | libsds-android-precheck build deps
+libsds-android-arm64: | libsds-android-precheck
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) \
 	ARCH=$(ARCH) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME)
 
@@ -134,7 +97,7 @@ libsds-android-amd64: ANDROID_ARCH=x86_64-linux-android
 libsds-android-amd64: ARCH=amd64
 libsds-android-amd64: ABIDIR=x86_64
 libsds-android-amd64: ARCH_DIRNAME=x86_64-linux-android
-libsds-android-amd64: | libsds-android-precheck build deps
+libsds-android-amd64: | libsds-android-precheck
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) \
 	ARCH=$(ARCH) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME)
 
@@ -142,7 +105,7 @@ libsds-android-x86: ANDROID_ARCH=i686-linux-android
 libsds-android-x86: ARCH=i386
 libsds-android-x86: ABIDIR=x86
 libsds-android-x86: ARCH_DIRNAME=i686-linux-android
-libsds-android-x86: | libsds-android-precheck build deps
+libsds-android-x86: | libsds-android-precheck
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) \
 	ARCH=$(ARCH) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME)
 
@@ -150,7 +113,7 @@ libsds-android-arm: ANDROID_ARCH=armv7a-linux-androideabi
 libsds-android-arm: ARCH=arm
 libsds-android-arm: ABIDIR=armeabi-v7a
 libsds-android-arm: ARCH_DIRNAME=arm-linux-androideabi
-libsds-android-arm: | libsds-android-precheck build deps
+libsds-android-arm: | libsds-android-precheck
 # cross-rs target architecture name does not match the one used in android
 	$(MAKE) build-libsds-for-android-arch ANDROID_ARCH=$(ANDROID_ARCH) \
 	ARCH=$(ARCH) ABIDIR=$(ABIDIR) ARCH_DIRNAME=$(ARCH_DIRNAME) \
@@ -171,10 +134,8 @@ else
 	$(error Unsupported ARCH '$(ARCH)'. Please set ARCH to one of: arm64, arm, amd64, x86)
 endif
 
-endif
-
 # Target iOS
 
-libsds-ios: | deps
-	$(ENV_SCRIPT) nim libsdsIOS $(NIM_PARAMS) sds.nims
+libsds-ios: |
+	nimble libsdsIOS $(NIM_PARAMS) sds.nimble
 

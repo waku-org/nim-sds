@@ -9,27 +9,15 @@ nix develop
 
 ## Building
 
-To build a Codex you can use:
+To simply build you can use:
 ```sh
-nix build '.?submodules=1#default'
+nix build '.#libsds'
 ```
-The `?submodules=1` part should eventually not be necessary.
-For more details see:
-https://github.com/NixOS/nix/issues/4423
 
 It can be also done without even cloning the repo:
 ```sh
-nix build 'git+https://github.com/waku-org/nim-sds?submodules=1#'
+nix build github:waku-org/nim-sds
+nix build github:waku-org/nim-sds#libsds-ios
+nix build github:waku-org/nim-sds#libsds-android-arm64"
 ```
-
-## Running
-
-```sh
-nix run 'git+https://github.com/waku-org/nim-sds?submodules=1#''
-```
-
-## Testing
-
-```sh
-nix flake check ".?submodules=1#"
-```
+Or as a flake input.
