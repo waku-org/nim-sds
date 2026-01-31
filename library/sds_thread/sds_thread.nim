@@ -7,7 +7,7 @@ import chronicles, chronos, chronos/threadsync, taskpools/channels_spsc_single, 
 import
   ../ffi_types,
   ./inter_thread_communication/sds_thread_request,
-  ../../src/[reliability_utils]
+  sds/sds_utils
 
 type SdsContext* = object
   thread: Thread[(ptr SdsContext)]

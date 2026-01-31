@@ -1,6 +1,6 @@
 import libp2p/protobuf/minprotobuf
 import endians
-import ../src/[message, protobufutil, bloom, reliability_utils]
+import sds/[message, protobufutil, bloom, sds_utils]
 
 proc encode*(msg: SdsMessage): ProtoBuffer =
   var pb = initProtoBuffer()

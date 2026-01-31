@@ -1,5 +1,5 @@
 import std/json
-import ./json_base_event, ../../src/[message], std/base64
+import ./json_base_event, sds/[message], std/base64
 
 type JsonMissingDependenciesEvent* = ref object of JsonEvent
   messageId*: SdsMessageID

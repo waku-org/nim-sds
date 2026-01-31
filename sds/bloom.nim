@@ -22,7 +22,7 @@ proc hashN(item: string, n: int, maxValue: int): int =
     hashB = abs(hash(item & " b")) mod maxValue # string concatenation
   abs((hashA + n * hashB)) mod maxValue
   #   # Use bit rotation for second hash instead of string concatenation if speed if preferred over FP-rate
-  #   # Rotate left by 21 bits (lower the rotation, higher the speed but higher the FP-rate too) 
+  #   # Rotate left by 21 bits (lower the rotation, higher the speed but higher the FP-rate too)
   #   hashB = abs(
   #     ((h shl 21) or (h shr (sizeof(int) * 8 - 21)))
   #   ) mod maxValue

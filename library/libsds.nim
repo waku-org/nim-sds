@@ -13,7 +13,7 @@ import
   ./sds_thread/inter_thread_communication/sds_thread_request,
   ./sds_thread/inter_thread_communication/requests/
     [sds_lifecycle_request, sds_message_request, sds_dependencies_request],
-  ../src/[reliability_utils, message],
+  sds,
   ./events/[
     json_message_ready_event, json_message_sent_event, json_missing_dependencies_event,
     json_periodic_sync_event,
