@@ -1,8 +1,8 @@
 import std/json
 import chronos, chronicles, results
 
-import ../../../alloc
-import ../../../../src/[reliability_utils, reliability]
+import library/alloc
+import sds
 
 type SdsLifecycleMsgType* = enum
   CREATE_RELIABILITY_MANAGER

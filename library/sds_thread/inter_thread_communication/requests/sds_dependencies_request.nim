@@ -1,8 +1,8 @@
 import std/[json, strutils, net, sequtils]
 import chronos, chronicles, results
 
-import ../../../alloc
-import ../../../../src/[reliability_utils, reliability]
+import library/alloc
+import sds
 
 type SdsDependenciesMsgType* = enum
   MARK_DEPENDENCIES_MET

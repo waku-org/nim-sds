@@ -1,5 +1,5 @@
 import std/json
-import ./json_base_event, ../../src/[message]
+import ./json_base_event, sds/[message]
 
 type JsonMessageReadyEvent* = ref object of JsonEvent
   messageId*: SdsMessageID
