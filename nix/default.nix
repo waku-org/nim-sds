@@ -58,12 +58,6 @@ in stdenv.mkDerivation rec {
     "USE_SYSTEM_NIM=1"
   ];
 
-  configurePhase = ''
-    patchShebangs . vendor/nimbus-build-system > /dev/null
-    make nimbus-build-system-paths
-    make nimbus-build-system-nimble-dir
-  '';
-
   preBuild = ''
     ln -s sds.nimble sds.nims
   '';
