@@ -42,6 +42,7 @@ in stdenv.mkDerivation rec {
     cmake
     which
     nim-unwrapped-2_2
+    nimble
     fakeGit
   ] ++ optionals stdenv.isLinux [
     pkgs.lsb-release
