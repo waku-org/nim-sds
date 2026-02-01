@@ -55,13 +55,7 @@ in stdenv.mkDerivation {
     "USE_SYSTEM_NIM=1"
   ];
 
-  configurePhase = ''
-    # Avoid /tmp write errors.
-    export XDG_CACHE_HOME=$TMPDIR/cache
     patchShebangs . vendor/nimbus-build-system/scripts
-    make nimbus-build-system-nimble-dir
-  '';
-
   installPhase = let
     androidManifest = ''
       <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.waku.nim-sds\" />

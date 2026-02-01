@@ -10,9 +10,6 @@ result
 sds.nims
 /.update.timestamp
 
-# Nimbus Build System
-nimbus-build-system.paths
-
 # Nimble packages
 /vendor/.nimble
 nimble.develop
