@@ -58,6 +58,10 @@ in stdenv.mkDerivation rec {
     "USE_SYSTEM_NIM=1"
   ];
 
+  configurePhase = ''
+    echo "Skipping configure phase (no CMake / submodules)"
+  '';
+
   preBuild = ''
     ln -s sds.nimble sds.nims
   '';
