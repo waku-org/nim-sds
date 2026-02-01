@@ -60,6 +60,11 @@ in stdenv.mkDerivation rec {
 
   preBuild = ''
     echo "Skipping preBuild phase in nim-sds package"
+    export HOME=$PWD/home
+    export NIMBLE_DIR=$PWD/nimble
+    export XDG_CACHE_HOME=$PWD/cache
+
+    mkdir -p "$HOME" "$NIMBLE_DIR" "$XDG_CACHE_HOME"
   '';
 
   installPhase = let
