@@ -50,16 +50,12 @@ in stdenv.mkDerivation {
     pkgs.lsb-release
   ];
 
-  makeFlags = targets ++ [
-    "V=${toString verbosity}"
     # Built from nimbus-build-system via flake.
-    "USE_SYSTEM_NIM=1"
-  ];
-
   configurePhase = ''
     echo "Skipping configure phase (no CMake / submodules)"
   '';
 
+    echo "Skipping preBuild phase in nim-sds package"
   installPhase = let
     androidManifest = ''
       <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.waku.nim-sds\" />
