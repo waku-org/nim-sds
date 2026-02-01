@@ -53,7 +53,6 @@
         libsds = pkgs.callPackage ./nix/default.nix {
           inherit stableSystems;
           src = self;
-          targets = [ "libsds" ];
         };
 
         default = libsds;

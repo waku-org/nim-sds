@@ -54,17 +54,12 @@ in stdenv.mkDerivation rec {
   NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${version}";
   XDG_CACHE_HOME = "/tmp";
 
-  makeFlags = targets ++ [
-    "V=${toString verbosity}"
-    "USE_SYSTEM_NIM=1"
-  ];
-
   configurePhase = ''
     echo "Skipping configure phase (no CMake / submodules)"
   '';
 
   preBuild = ''
-    ln -s sds.nimble sds.nims
+    echo "Skipping preBuild phase in nim-sds package"
   '';
 
   installPhase = let
