@@ -45,6 +45,7 @@ in stdenv.mkDerivation {
   # Dependencies that should only exist in the build environment.
   nativeBuildInputs = with pkgs; [
     nim cmake which patchelf
+    nimble
   ] ++ optionals stdenv.isLinux [
     pkgs.lsb-release
   ];
