@@ -55,7 +55,10 @@ in stdenv.mkDerivation {
     "USE_SYSTEM_NIM=1"
   ];
 
-    patchShebangs . vendor/nimbus-build-system/scripts
+  configurePhase = ''
+    echo "Skipping configure phase (no CMake / submodules)"
+  '';
+
   installPhase = let
     androidManifest = ''
       <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.waku.nim-sds\" />
