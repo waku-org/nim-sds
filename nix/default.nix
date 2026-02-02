@@ -42,6 +42,7 @@ in stdenv.mkDerivation rec {
     cmake
     which
     nim-unwrapped-2_2
+    nimble
     fakeGit
   ] ++ optionals stdenv.isLinux [
     pkgs.lsb-release
@@ -53,19 +54,17 @@ in stdenv.mkDerivation rec {
   NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${version}";
   XDG_CACHE_HOME = "/tmp";
 
-  makeFlags = targets ++ [
-    "V=${toString verbosity}"
-    "USE_SYSTEM_NIM=1"
-  ];
-
   configurePhase = ''
-    patchShebangs . vendor/nimbus-build-system > /dev/null
-    make nimbus-build-system-paths
-    make nimbus-build-system-nimble-dir
+    echo "Skipping configure phase (no CMake / submodules)"
   '';
 
   preBuild = ''
-    ln -s sds.nimble sds.nims
+    echo "Skipping preBuild phase in nim-sds package"
+    export HOME=$PWD/home
+    export NIMBLE_DIR=$PWD/nimble
+    export XDG_CACHE_HOME=$PWD/cache
+
+    mkdir -p "$HOME" "$NIMBLE_DIR" "$XDG_CACHE_HOME"
   '';
 
   installPhase = let
