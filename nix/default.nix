@@ -11,9 +11,6 @@
   stableSystems ? ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"],
 }:
 
-assert pkgs.lib.assertMsg ((src.submodules or true) == true)
-  "Unable to build without submodules. Append '?submodules=1#' to the URI.";
-
 let
   inherit (pkgs) stdenv lib writeScriptBin callPackage;
   inherit (lib) any match substring optionals optionalString;

@@ -19,6 +19,8 @@
 
   outputs = { self, nixpkgs, nimbusBuildSystem }:
     let
+      nimDeps = import ./get_nimble_deps.nix { inherit nixpkgs; };
+
       stableSystems = [
         "x86_64-linux" "aarch64-linux"
         "x86_64-darwin" "aarch64-darwin"
