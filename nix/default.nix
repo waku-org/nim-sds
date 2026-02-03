@@ -48,15 +48,11 @@ in stdenv.mkDerivation {
 
   makeFlags = targets ++ [
     "V=${toString verbosity}"
-    # Built from nimbus-build-system via flake.
-    "USE_SYSTEM_NIM=1"
   ];
 
   configurePhase = ''
     # Avoid /tmp write errors.
     export XDG_CACHE_HOME=$TMPDIR/cache
-    patchShebangs . vendor/nimbus-build-system/scripts
-    make nimbus-build-system-nimble-dir
   '';
 
   installPhase = let
