@@ -42,22 +42,23 @@ in stdenv.mkDerivation {
   # Dependencies that should only exist in the build environment.
   nativeBuildInputs = with pkgs; [
     nim cmake which patchelf
-    nimble
   ] ++ optionals stdenv.isLinux [
     pkgs.lsb-release
   ];
 
+  makeFlags = targets ++ [
+    "V=${toString verbosity}"
     # Built from nimbus-build-system via flake.
+    "USE_SYSTEM_NIM=1"
+  ];
+
   configurePhase = ''
-    echo "Skipping configure phase (no CMake / submodules)"
+    # Avoid /tmp write errors.
+    export XDG_CACHE_HOME=$TMPDIR/cache
+    patchShebangs . vendor/nimbus-build-system/scripts
+    make nimbus-build-system-nimble-dir
   '';
 
-    echo "Skipping preBuild phase in nim-sds package"
-    export HOME=$PWD/home
-    export NIMBLE_DIR=$PWD/nimble
-    export XDG_CACHE_HOME=$PWD/cache
-
-    mkdir -p "$HOME" "$NIMBLE_DIR" "$XDG_CACHE_HOME"
   installPhase = let
     androidManifest = ''
       <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.waku.nim-sds\" />
