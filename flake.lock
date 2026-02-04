@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "nimDeps": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "./nix/get_nimble_deps",
+        "type": "path"
+      },
+      "original": {
+        "path": "./nix/get_nimble_deps",
+        "type": "path"
+      },
+      "parent": []
+    },
     "nimbusBuildSystem": {
       "inputs": {
         "nixpkgs": [
@@ -40,6 +56,7 @@
     },
     "root": {
       "inputs": {
+        "nimDeps": "nimDeps",
         "nimbusBuildSystem": "nimbusBuildSystem",
         "nixpkgs": "nixpkgs"
       }

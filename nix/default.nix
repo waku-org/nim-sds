@@ -9,6 +9,7 @@
   targets ? ["libsds-android-arm64"],
   # These are the only platforms tested in CI and considered stable.
   stableSystems ? ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"],
+  nimDeps ? null,
 }:
 
 let
@@ -36,7 +37,7 @@ in stdenv.mkDerivation {
   };
 
   buildInputs = with pkgs; [
-    openssl gmp zip
+    openssl gmp zip nim nimDeps
   ];
 
   # Dependencies that should only exist in the build environment.
@@ -53,6 +54,9 @@ in stdenv.mkDerivation {
   configurePhase = ''
     # Avoid /tmp write errors.
     export XDG_CACHE_HOME=$TMPDIR/cache
+    export HOME=$TMPDIR
+    export NIMBLE_DIR=${nimDeps}/pkgs2
+    export NIMBLE_PATH=${nimDeps}/pkgs2
   '';
 
   installPhase = let

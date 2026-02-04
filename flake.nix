@@ -15,12 +15,14 @@
       url = "git+file:./vendor/nimbus-build-system?submodules=1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nimDeps = {
+      url = "path:./nix/get_nimble_deps";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nimbusBuildSystem }:
+  outputs = { self, nixpkgs, nimbusBuildSystem, nimDeps }:
     let
-      nimDeps = import ./get_nimble_deps.nix { inherit nixpkgs; };
-
       stableSystems = [
         "x86_64-linux" "aarch64-linux"
         "x86_64-darwin" "aarch64-darwin"
@@ -51,9 +53,15 @@
         pkgs = pkgsFor.${system};
         nim = nimbusBuildSystem.packages.${system}.nim;
 
+        buildDeps = nimDeps.packages.${system}.nimDeps.overrideAttrs (old: {
+          # self = the main flake root folder
+          src = self;   # point the Nim deps derivation to the repo root
+        });
+
         buildTargets = pkgs.callPackage ./nix/default.nix {
           inherit stableSystems nim;
           src = self;
+          nimDeps = buildDeps;
         };
 
         skipAndroidOnDarwin = t: !(pkgs.stdenv.isDarwin);
