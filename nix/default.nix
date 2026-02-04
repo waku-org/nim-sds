@@ -9,7 +9,7 @@
   targets ? ["libsds-android-arm64"],
   # These are the only platforms tested in CI and considered stable.
   stableSystems ? ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"],
-  nimDeps ? null,
+  buildPackages,
 }:
 
 let
@@ -30,6 +30,8 @@ in stdenv.mkDerivation {
   inherit src;
   version = "${version}-${revision}";
 
+  fetchNimbleDeps = buildPackages.callPackage ./fetch-nimble-deps.nix {};
+
   env = {
     NIMFLAGS = "-d:disableMarchNative";
     ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
@@ -37,7 +39,7 @@ in stdenv.mkDerivation {
   };
 
   buildInputs = with pkgs; [
-    openssl gmp zip nim nimDeps
+    openssl gmp zip nim
   ];
 
   # Dependencies that should only exist in the build environment.
@@ -55,8 +57,6 @@ in stdenv.mkDerivation {
     # Avoid /tmp write errors.
     export XDG_CACHE_HOME=$TMPDIR/cache
     export HOME=$TMPDIR
-    export NIMBLE_DIR=${nimDeps}/pkgs2
-    export NIMBLE_PATH=${nimDeps}/pkgs2
   '';
 
   installPhase = let
