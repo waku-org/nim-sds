@@ -19,6 +19,7 @@
 
         # Place deps in $out so Nix can track them
         buildPhase = ''
+          echo "AAAA inside build"
           mkdir -p $out
           # install nimble packages locally under $out/pkgs2
           NIMBLE_DIR=$out/pkgs2 nimble install -y
