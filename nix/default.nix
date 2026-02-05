@@ -1,8 +1,6 @@
 {
   pkgs,
   src ? ../.,
-  # Nimbus-build-system package.
-  nim ? null,
   # Options: 0,1,2
   verbosity ? 2,
   # Make targets
@@ -30,6 +28,8 @@ in stdenv.mkDerivation {
   inherit src;
   version = "${version}-${revision}";
 
+  fetchNimbleDeps = buildPackages.callPackage ./fetch-nimble-deps.nix {};
+
   env = {
     NIMFLAGS = "-d:disableMarchNative";
     ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
@@ -37,7 +37,7 @@ in stdenv.mkDerivation {
   };
 
   buildInputs = with pkgs; [
-    openssl gmp zip nim git cacert
+    openssl gmp zip nim git nimble
   ];
 
   # Dependencies that should only exist in the build environment.
@@ -52,20 +52,23 @@ in stdenv.mkDerivation {
   ];
 
   configurePhase = ''
-    export XDG_CACHE_HOME=$TMPDIR/cache
-
-    export HOME=$TMPDIR/home
-    mkdir -p $HOME
-
-    nimble setup
-
-    export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
-    export GIT_SSL_CAINFO=$SSL_CERT_FILE
-
-    nimble install -y --depsOnly
+    echo "Skipping configurePhase in default.nix"
   '';
 
   buildPhase = ''
+    echo "AAA before ls fetchNimbleDeps"
+    ls $fetchNimbleDeps
+
+    echo "AAAA before cp"
+    mkdir nimbledeps
+    cp -r $fetchNimbleDeps/* nimbledeps/
+    echo "AAAA after cp"
+
+
+
+    echo "AAA after ls fetchNimbleDeps"
+    ls nimbledeps/
+    echo "AAAA after ls nimbledeps/"
     make libsds
   '';
 
@@ -91,9 +94,4 @@ in stdenv.mkDerivation {
     license = licenses.mit;
     platforms = stableSystems;
   };
-
-  # These attributes make this a fixed-output derivation
-  outputHash = "sha256-aHNjI7UcTlz2nRM10UW97e2/xjBUAAUqBCp5UUtA45k=";
-  outputHashAlgo = "sha256";
-  outputHashMode = "recursive";
 }
