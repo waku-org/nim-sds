@@ -43,7 +43,7 @@ else ifeq ($(detected_OS),Linux)
 endif
 
 libsds:
-	nimble $(BUILD_COMMAND) $(NIM_PARAMS) sds.nimble
+	nimble --verbose $(BUILD_COMMAND) $(NIM_PARAMS) sds.nimble
 
 #####################
 ## Mobile Bindings ##

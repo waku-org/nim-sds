@@ -52,24 +52,10 @@ in stdenv.mkDerivation {
   ];
 
   configurePhase = ''
-    echo "Skipping configurePhase in default.nix"
-  '';
-
-  buildPhase = ''
-    echo "AAA before ls fetchNimbleDeps"
-    ls $fetchNimbleDeps
-
-    echo "AAAA before cp"
     mkdir nimbledeps
-    cp -r $fetchNimbleDeps/* nimbledeps/
-    echo "AAAA after cp"
-
-
-
-    echo "AAA after ls fetchNimbleDeps"
-    ls nimbledeps/
-    echo "AAAA after ls nimbledeps/"
-    make libsds
+    tar -xzf $fetchNimbleDeps/nimbledeps.tar.gz
+    cp $fetchNimbleDeps/nimble.paths .
+    sed -i 's|/build/[^"]*/nimbledeps/pkgs2/|/build/source/nimbledeps/pkgs2/|g' nimble.paths
   '';
 
   installPhase = let
