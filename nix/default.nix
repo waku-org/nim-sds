@@ -93,7 +93,7 @@ in stdenv.mkDerivation {
   };
 
   # These attributes make this a fixed-output derivation
-  outputHash = "sha256-ReMsYzigTkqkmwASOY/BUutxCKUHdjL5xe2LJqNJvOw=";
+  outputHash = "sha256-aHNjI7UcTlz2nRM10UW97e2/xjBUAAUqBCp5UUtA45k=";
   outputHashAlgo = "sha256";
   outputHashMode = "recursive";
 }
