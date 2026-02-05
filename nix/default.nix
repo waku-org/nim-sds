@@ -81,7 +81,7 @@ in stdenv.mkDerivation {
     zip -r libwaku.aar *
   '' else ''
     mkdir -p $out/lib -p $out/include
-    cp build/* $out/lib/
+    cp build/lib* $out/lib/
     cp library/libsds.h $out/include/
   '';
 
