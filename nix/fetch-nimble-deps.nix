@@ -7,7 +7,7 @@ pkgs.stdenv.mkDerivation {
   src = ../.;
 
   nativeBuildInputs = [
-    pkgs.nim git nimble pkgs.cacert
+    pkgs.nim git nimble pkgs.cacert pkgs.gzip
   ];
 
   configurePhase = ''
@@ -38,7 +38,7 @@ pkgs.stdenv.mkDerivation {
       --owner=0 --group=0 --numeric-owner \
       --mtime='@0' \
       -C "$(dirname nimbledeps)" "$(basename nimbledeps)" \
-      | gzip -n > "$out/nimbledeps.tar.gz"
+      | "${pkgs.gzip}/bin/gzip" -n > "$out/nimbledeps.tar.gz"
   '';
 
   # These attributes make this a fixed-output derivation
