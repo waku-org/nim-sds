@@ -33,14 +33,16 @@ pkgs.stdenv.mkDerivation {
     cp nimble.paths "$out/"
 
     ## This is needed to export nimbledeps properly without having different outputHash on each run
-    tar czf "$out/nimbledeps.tar.gz" \
+    tar cf - \
+      --sort=name \
       --owner=0 --group=0 --numeric-owner \
-      --mtime='1970-01-01' \
-      -C $(dirname nimbledeps) $(basename nimbledeps)
+      --mtime='@0' \
+      -C "$(dirname nimbledeps)" "$(basename nimbledeps)" \
+      | gzip -n > "$out/nimbledeps.tar.gz"
   '';
 
   # These attributes make this a fixed-output derivation
-  outputHash = "sha256-xxtAW530XzG3ICoV6KvqisENIRAml1kHqDHzKJ/KziE=";
+  outputHash = "sha256-Kg3y+wWEUMAjXY3BCKkH82JKXNOn+HM5K8nEr+x+7Yc=";
   outputHashAlgo = "sha256";
   outputHashMode = "recursive";
 }
