@@ -7,16 +7,19 @@ pkgs.stdenv.mkDerivation {
   src = ../.;
 
   nativeBuildInputs = [
-    pkgs.nim git nimble pkgs.cacert pkgs.gzip
+    pkgs.nim git nimble pkgs.cacert pkgs.gzip pkgs.openssl
   ];
 
   configurePhase = ''
-    export XDG_CACHE_HOME=$TMPDIR/cache
+    export HOME=$NIX_BUILD_TOP/home
+    export XDG_CACHE_HOME=$NIX_BUILD_TOP/cache
+    export NIM_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+    export SSL_CERT_FILE=$NIM_SSL_CERT_FILE
+    export OPENSSL_ROOT_DIR=${pkgs.openssl}
 
     export HOME=$TMPDIR/home
     mkdir -p $HOME
 
-    nimble setup -l
   '';
 
   buildPhase = ''
@@ -24,9 +27,7 @@ pkgs.stdenv.mkDerivation {
   '';
 
   installPhase = ''
-    export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
-    export GIT_SSL_CAINFO=$SSL_CERT_FILE
-
+    nimble setup -l
     nimble install -y --depsOnly
 
     mkdir -p "$out/"
