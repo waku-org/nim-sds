@@ -47,27 +47,12 @@
           src = self;
         };
 
-        targets =
-          if pkgs.stdenv.isDarwin then
-            [ ]
-          else
-            [
-              "libsds-android-arm64"
-              "libsds-android-amd64"
-              "libsds-android-x86"
-              "libsds-android-arm"
-            ];
-      in rec {
-        # non-Android package
-        libsds = buildTargets.override { targets = [ "libsds" ]; };
-
-        default = libsds;
-      }
-      # Generate a package for each target dynamically
-      // builtins.listToAttrs (map (name: {
-        inherit name;
-        value = buildTargets.override { targets = [ name ]; };
-      }) targets));
+        in rec {
+          # non-Android package
+          libsds = buildTargets.override { targets = [ "libsds" ]; };
+          default = libsds;
+        }
+      );
 
       devShells = forAllSystems (system: {
         default = pkgsFor.${system}.callPackage ./nix/shell.nix {
