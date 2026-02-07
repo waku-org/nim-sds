@@ -40,8 +40,8 @@ pkgs.stdenv.mkDerivation {
   '';
 
   # These attributes make this a fixed-output derivation
-  outputHash = if pkgs.stdenv.isLinux then "sha256-0gXTK89SLyalL5onaHGZes0mfu9ulCO5Pk28tNrxNXg="
-    else "sha256-1QIGlCLQm0yNgYCy1yB20aEnJXXW1jothqje2Y7IZQ0=";
+  outputHash = if pkgs.stdenv.isLinux then "sha256-erRegT3lYNv3vvSaXnpyKmB1V6utOsLgZi6C/zJZauE="
+    else "sha256-mXhhR48N6z7ncnxZay5DQNVOo1iH2h4Rrja/sG6XThU=";
   outputHashAlgo = "sha256";
   outputHashMode = "recursive";
 }
