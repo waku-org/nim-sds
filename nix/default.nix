@@ -53,9 +53,14 @@ in stdenv.mkDerivation {
 
   configurePhase = ''
     mkdir nimbledeps
+
+    # Retrieve the dependencies
     tar -xzf $fetchNimbleDeps/nimbledeps.tar.gz
     cp $fetchNimbleDeps/nimble.paths .
-    sed -i 's|/build/[^"]*/nimbledeps/pkgs2/|/build/source/nimbledeps/pkgs2/|g' nimble.paths
+
+    buildDir="$(pwd)"
+    # Replace *-source with current build dir
+    sed -i "s|/[^\"']*-source|$buildDir|g" nimble.paths
   '';
 
   installPhase = let
