@@ -11,15 +11,12 @@ pkgs.stdenv.mkDerivation {
   ];
 
   configurePhase = ''
-    export HOME=$NIX_BUILD_TOP/home
     export XDG_CACHE_HOME=$NIX_BUILD_TOP/cache
-    export NIM_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
-    export SSL_CERT_FILE=$NIM_SSL_CERT_FILE
+    export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
     export OPENSSL_ROOT_DIR=${pkgs.openssl}
 
     export HOME=$TMPDIR/home
     mkdir -p $HOME
-
   '';
 
   buildPhase = ''
@@ -33,8 +30,8 @@ pkgs.stdenv.mkDerivation {
     mkdir -p "$out/"
     cp nimble.paths "$out/"
 
-    ## This is needed to export nimbledeps properly without having different outputHash on each run
-    tar cf - \
+    ## Use Nix's gnutar for reproducible tar
+    ${pkgs.gnutar}/bin/tar cf - \
       --sort=name \
       --owner=0 --group=0 --numeric-owner \
       --mtime='@0' \
@@ -43,7 +40,7 @@ pkgs.stdenv.mkDerivation {
   '';
 
   # These attributes make this a fixed-output derivation
-  outputHash = "sha256-Kg3y+wWEUMAjXY3BCKkH82JKXNOn+HM5K8nEr+x+7Yc=";
+  outputHash = "sha256-Kg3y+aWEUMAjXY3BCKkH82JKXNOn+HM5K8nEr+x+7Yc=";
   outputHashAlgo = "sha256";
   outputHashMode = "recursive";
 }
