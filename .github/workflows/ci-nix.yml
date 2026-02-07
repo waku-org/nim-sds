@@ -39,7 +39,7 @@ jobs:
       - name: 'Run Nix build for ${{ matrix.nixpkg }}'
         shell: bash
         run: |
-          nix build -L '.?submodules=1#${{ matrix.nixpkg }}' \
+          nix build -L '.?${{ matrix.nixpkg }}' \
             --print-out-paths --accept-flake-config
 
       - name: 'Show result contents'
