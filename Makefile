@@ -138,5 +138,5 @@ endif
 # Target iOS
 
 libsds-ios: | deps
-	$(ENV_SCRIPT) nimble libsdsIOS $(NIM_PARAMS) sds.nimble
+	nimble libsdsIOS $(NIM_PARAMS) sds.nimble
 
