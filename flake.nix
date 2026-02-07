@@ -47,13 +47,16 @@
           src = self;
         };
 
-        skipAndroidOnDarwin = t: !(pkgs.stdenv.isDarwin);
-        targets = [
-          "libsds-android-arm64"
-          "libsds-android-amd64"
-          "libsds-android-x86"
-          "libsds-android-arm"
-        ];
+        targets =
+          if pkgs.stdenv.isDarwin then
+            [ ]
+          else
+            [
+              "libsds-android-arm64"
+              "libsds-android-amd64"
+              "libsds-android-x86"
+              "libsds-android-arm"
+            ];
       in rec {
         # non-Android package
         libsds = buildTargets.override { targets = [ "libsds" ]; };
