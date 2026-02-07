@@ -22,30 +22,12 @@ jobs:
           - libsds-android-x86
           - libsds-android-arm
 
-      include:
-        - system: aarch64-darwin
-          runs_on: [self-hosted, macOS, ARM64]
-          nixpkg: libsds
+        include:
+          - system: aarch64-darwin
+            runs_on: [self-hosted, macOS, ARM64]
 
-        - system: x86_64-linux
-          runs_on: [self-hosted, Linux, X64]
-          nixpkg: libsds
-
-        - system: x86_64-linux
-          runs_on: [self-hosted, Linux, X64]
-          nixpkg: libsds-android-arm64
-
-        - system: x86_64-linux
-          runs_on: [self-hosted, Linux, X64]
-          nixpkg: libsds-android-amd64
-
-        - system: x86_64-linux
-          runs_on: [self-hosted, Linux, X64]
-          nixpkg: libsds-android-x86
-
-        - system: x86_64-linux
-          runs_on: [self-hosted, Linux, X64]
-          nixpkg: libsds-android-arm
+          - system: x86_64-linux
+            runs_on: [self-hosted, Linux, X64]
 
     name: '${{ matrix.system }} / ${{ matrix.nixpkg }}'
     runs-on: ${{ matrix.runs_on }}
@@ -57,7 +39,7 @@ jobs:
       - name: 'Run Nix build for ${{ matrix.nixpkg }}'
         shell: bash
         run: |
-          nix build -L '.?${{ matrix.nixpkg }}' \
+          nix build -L '.?submodules=1#${{ matrix.nixpkg }}' \
             --print-out-paths --accept-flake-config
 
       - name: 'Show result contents'
