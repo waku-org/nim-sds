@@ -1,8 +1,8 @@
 import std/[json, strutils, net, sequtils, base64]
 import chronos, chronicles, results
 
-import ../../../alloc
-import ../../../../src/[reliability_utils, reliability, message]
+import library/alloc
+import sds
 
 type SdsMessageMsgType* = enum
   WRAP_MESSAGE

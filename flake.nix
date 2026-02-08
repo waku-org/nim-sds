@@ -10,14 +10,9 @@
     # We are pinning the commit because ultimately we want to use same commit across different projects.
     # A commit from nixpkgs 24.11 release : https://github.com/NixOS/nixpkgs/tree/release-24.11
     nixpkgs.url = "github:NixOS/nixpkgs?rev=0ef228213045d2cdb5a169a95d63ded38670b293";
-    # WARNING: Remember to update commit and use 'nix flake update' to update flake.lock.
-    nimbusBuildSystem = {
-      url = "git+file:./vendor/nimbus-build-system?submodules=1";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, nimbusBuildSystem }:
+  outputs = { self, nixpkgs }:
     let
       stableSystems = [
         "x86_64-linux" "aarch64-linux"
@@ -47,35 +42,20 @@
     in rec {
       packages = forAllSystems (system: let
         pkgs = pkgsFor.${system};
-        nim = nimbusBuildSystem.packages.${system}.nim;
 
         buildTargets = pkgs.callPackage ./nix/default.nix {
-          inherit stableSystems nim;
           src = self;
         };
 
-        skipAndroidOnDarwin = t: !(pkgs.stdenv.isDarwin);
-        targets = [
-          "libsds-android-arm64"
-          "libsds-android-amd64"
-          "libsds-android-x86"
-          "libsds-android-arm"
-        ];
-      in rec {
-        # non-Android package
-        libsds = buildTargets.override { targets = [ "libsds" ]; };
-
-        default = libsds;
-      }
-      # Generate a package for each target dynamically
-      // builtins.listToAttrs (map (name: {
-        inherit name;
-        value = buildTargets.override { targets = [ name ]; };
-      }) targets));
+        in rec {
+          # non-Android package
+          libsds = buildTargets.override { targets = [ "libsds" ]; };
+          default = libsds;
+        }
+      );
 
       devShells = forAllSystems (system: {
         default = pkgsFor.${system}.callPackage ./nix/shell.nix {
-          inherit (nimbusBuildSystem.packages.${system}) nim;
         };
       });
     };

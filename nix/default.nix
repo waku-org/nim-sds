@@ -1,18 +1,14 @@
 {
   pkgs,
   src ? ../.,
-  # Nimbus-build-system package.
-  nim ? null,
   # Options: 0,1,2
   verbosity ? 2,
   # Make targets
   targets ? ["libsds-android-arm64"],
   # These are the only platforms tested in CI and considered stable.
   stableSystems ? ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows"],
+  buildPackages,
 }:
-
-assert pkgs.lib.assertMsg ((src.submodules or true) == true)
-  "Unable to build without submodules. Append '?submodules=1#' to the URI.";
 
 let
   inherit (pkgs) stdenv lib writeScriptBin callPackage;
@@ -32,6 +28,8 @@ in stdenv.mkDerivation {
   inherit src;
   version = "${version}-${revision}";
 
+  fetchNimbleDeps = buildPackages.callPackage ./fetch-nimble-deps.nix {};
+
   env = {
     NIMFLAGS = "-d:disableMarchNative";
     ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
@@ -39,7 +37,7 @@ in stdenv.mkDerivation {
   };
 
   buildInputs = with pkgs; [
-    openssl gmp zip
+    openssl gmp zip nim git nimble
   ];
 
   # Dependencies that should only exist in the build environment.
@@ -51,15 +49,18 @@ in stdenv.mkDerivation {
 
   makeFlags = targets ++ [
     "V=${toString verbosity}"
-    # Built from nimbus-build-system via flake.
-    "USE_SYSTEM_NIM=1"
   ];
 
   configurePhase = ''
-    # Avoid /tmp write errors.
-    export XDG_CACHE_HOME=$TMPDIR/cache
-    patchShebangs . vendor/nimbus-build-system/scripts
-    make nimbus-build-system-nimble-dir
+    mkdir nimbledeps
+
+    # Retrieve the dependencies
+    tar -xzf $fetchNimbleDeps/nimbledeps.tar.gz
+    cp $fetchNimbleDeps/nimble.paths .
+
+    buildDir="$(pwd)"
+    # Replace *-source with current build dir
+    sed -i "s|/[^\"']*-source|$buildDir|g" nimble.paths
   '';
 
   installPhase = let
@@ -74,7 +75,7 @@ in stdenv.mkDerivation {
     zip -r libwaku.aar *
   '' else ''
     mkdir -p $out/lib -p $out/include
-    cp build/* $out/lib/
+    cp build/lib* $out/lib/
     cp library/libsds.h $out/include/
   '';
 
