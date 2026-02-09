@@ -10,6 +10,8 @@
     # We are pinning the commit because ultimately we want to use same commit across different projects.
     # A commit from nixpkgs 24.11 release : https://github.com/NixOS/nixpkgs/tree/release-24.11
     nixpkgs.url = "github:NixOS/nixpkgs?rev=0ef228213045d2cdb5a169a95d63ded38670b293";
+    # Used only for its pinned Nim compiler package.
+    # The build system itself (Makefiles, env.sh) is NOT used — we call nimble directly.
     # WARNING: Remember to update commit and use 'nix flake update' to update flake.lock.
     nimbusBuildSystem = {
       url = "git+file:./vendor/nimbus-build-system?submodules=1";

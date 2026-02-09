@@ -139,8 +139,14 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
 
   # 2) Compile all generated C files to object files with hidden visibility
   # This prevents symbol conflicts with other Nim libraries (e.g., libnim_status_client)
+  # Find Nim's lib directory for C headers (nim.h etc.)
+  # NIM_LIB_DIR is set by Nix; fallback finds it from nim dump output
+  let nimLibDir = if existsEnv("NIM_LIB_DIR"): getEnv("NIM_LIB_DIR")
+                  else: gorge("nim dump 2>&1 | grep '/lib/pure$' | sed 's|/pure$||' | head -1").strip()
+  let nimLibInclude = if nimLibDir.len > 0: " -I" & nimLibDir else: ""
+
   let clangFlags = "-arch " & arch & " -isysroot " & sdkPath &
-      " -I./vendor/nimbus-build-system/vendor/Nim/lib/" &
+      nimLibInclude &
       " -fembed-bitcode -miphoneos-version-min=16.0 -O2" &
       " -fvisibility=hidden"
 
@@ -179,6 +185,27 @@ proc buildMobileAndroid(srcDir = ".", params = "") =
   var extra_params = params
   for i in 2 ..< paramCount():
     extra_params &= " " & paramStr(i)
+
+  # Android NDK toolchain setup — reads env vars set by Nix or the caller
+  let ndkRoot = getEnv("ANDROID_NDK_ROOT")
+  let androidArch = getEnv("ANDROID_ARCH")
+  let androidTarget = getEnv("ANDROID_TARGET", "30")
+  let archDirname = getEnv("ARCH_DIRNAME")
+
+  if ndkRoot.len > 0 and androidArch.len > 0 and archDirname.len > 0:
+    let detectedOS = when defined(macosx): "darwin-x86_64" else: "linux-x86_64"
+    let toolchain = ndkRoot & "/toolchains/llvm/prebuilt/" & detectedOS
+    let sysroot = toolchain & "/sysroot"
+
+    extra_params &= " --passC:\"--sysroot=" & sysroot & "\""
+    extra_params &= " --passL:\"--sysroot=" & sysroot & "\""
+    extra_params &= " --passC:\"--target=" & androidArch & androidTarget & "\""
+    extra_params &= " --passL:\"--target=" & androidArch & androidTarget & "\""
+    extra_params &= " --passC:\"-I" & sysroot & "/usr/include\""
+    extra_params &= " --passC:\"-I" & sysroot & "/usr/include/" & archDirname & "\""
+    extra_params &= " --passL:\"-L" & sysroot & "/usr/lib/" & archDirname & "/" & androidTarget & "\""
+
+    putEnv("CC", toolchain & "/bin/" & androidArch & androidTarget & "-clang")
 
   exec "nim c" & " --out:" & outDir &
     "/libsds.so --threads:on --app:lib --opt:size --noMain --mm:refc --nimMainPrefix:libsds " &

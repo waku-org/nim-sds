@@ -1,3 +1,16 @@
+# ============================================================================
+# DEPRECATED: This Makefile is deprecated in favor of direct Nix + Nimble builds.
+#
+# New workflow:
+#   nix build '.?submodules=1#libsds'          # Build via Nix
+#   nix develop '.?submodules=1'               # Enter dev shell, then:
+#     nim libsdsDynamicLinux sds.nims           # Linux
+#     nim libsdsDynamicMac sds.nims             # macOS
+#     nimble test                               # Run tests
+#
+# This Makefile will be removed in a future release.
+# ============================================================================
+
 .PHONY: libsds deps
 
 export BUILD_SYSTEM_DIR := vendor/nimbus-build-system
