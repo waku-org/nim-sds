@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# This script creates nimble-link files for all vendored Nim submodules.
-# It replaces the dependency on nimbus-build-system's create_nimble_link.sh
-# by inlining the same logic.
+# This script creates nimble-link files for all vendored Nim submodules,
+# allowing Nim's import resolver to find them.
 #
 # Required env vars:
 #   NIMBLE_DIR  — directory where nimble-link packages are created

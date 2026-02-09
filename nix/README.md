@@ -5,18 +5,17 @@ The Nix configuration builds nim-sds by calling nimble tasks directly (no Makefi
 ## Architecture
 
 ```
-flake.nix          — Entry point, defines packages and dev shell
+flake.nix           — Entry point, defines packages, dev shell, and utility apps
 ├── nix/default.nix — Build derivation: configures env, runs nim <task> sds.nims
 ├── nix/shell.nix   — Dev shell: sets up NIMBLE_DIR, nimble-links, NIM_LIB_DIR
 └── nix/tools.nix   — Helper: extracts version from sds.nimble
 ```
 
-The `nimbusBuildSystem` flake input is used **only** for its pinned Nim compiler.
+The Nim compiler comes from nixpkgs (pinned to 24.11, Nim 2.2.4).
 All build logic lives in `sds.nimble` (nimble tasks).
 
 ## Shell
 
-A development shell can be started using:
 ```sh
 nix develop '.?submodules=1'
 ```
@@ -34,15 +33,10 @@ nix build '.?submodules=1#libsds-android-arm64'
 ```
 
 The `?submodules=1` part is required because vendored dependencies are git submodules.
-For more details see: https://github.com/NixOS/nix/issues/4423
 
-## Testing
+## Utility apps
 
 ```sh
-nix flake check '.?submodules=1'
-```
-
-Or inside the dev shell:
-```sh
-nimble test
+nix run '.#setup'    # Initialize git submodules (run once after clone)
+nix run '.#clean'    # Garbage-collect the Nix store
 ```
