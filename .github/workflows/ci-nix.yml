@@ -39,7 +39,7 @@ jobs:
       - name: 'Run tests'
         run: |
           nix develop '.?submodules=1' --accept-flake-config --command \
-            nimble test
+            nim test sds.nims
 
   # Build desktop library
   build-desktop:
@@ -62,7 +62,7 @@ jobs:
           nix build -L '.?submodules=1#libsds' \
             --print-out-paths --accept-flake-config
       - name: 'Verify output'
-        run: file result/lib/*
+        run: ls -la result/lib/
 
   # Build Android targets only on Linux — avoids macOS cross-compile issues
   build-android:
@@ -85,4 +85,4 @@ jobs:
           nix build -L '.?submodules=1#${{ matrix.nixpkg }}' \
             --print-out-paths --accept-flake-config
       - name: 'Verify output'
-        run: file result/jni/**/* 2>/dev/null || file result/lib/*
+        run: ls -laR result/
