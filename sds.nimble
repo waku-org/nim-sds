@@ -52,9 +52,9 @@ task test, "Run the test suite":
   when defined(macosx):
     let arch = getArch()
     if arch == "arm64":
-      extraFlags = "--cpu:arm64 "
+      extraFlags = "--cpu:arm64 --passC:\"-arch arm64\" --passL:\"-arch arm64\" "
     else:
-      extraFlags = "--cpu:amd64 "
+      extraFlags = "--cpu:amd64 --passC:\"-arch x86_64\" --passL:\"-arch x86_64\" "
   exec "nim c -r " & extraFlags & "tests/test_bloom.nim"
   exec "nim c -r " & extraFlags & "tests/test_reliability.nim"
 
