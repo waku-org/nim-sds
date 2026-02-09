@@ -71,8 +71,17 @@
         default = pkgsFor.${system}.callPackage ./nix/shell.nix {};
       });
 
-      # nix run '.#clean' — garbage-collect the Nix store
       apps = forAllSystems (system: {
+        # nix run '.#setup' — initialize git submodules (run once after clone)
+        setup = {
+          type = "app";
+          program = toString (pkgsFor.${system}.writeShellScript "nix-setup" ''
+            echo "Initializing git submodules..."
+            git submodule update --init --recursive
+            echo "Done. You can now run: nix build '.?submodules=1#libsds'"
+          '');
+        };
+        # nix run '.#clean' — garbage-collect the Nix store
         clean = {
           type = "app";
           program = toString (pkgsFor.${system}.writeShellScript "nix-clean" ''

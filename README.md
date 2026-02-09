@@ -5,6 +5,9 @@ Nim implementation of the e2e reliability protocol.
 ## Quick start
 
 ```bash
+# Initialize vendored dependencies (run once after clone)
+nix run '.#setup'
+
 # Build the shared library
 nix build '.?submodules=1#libsds'
 
