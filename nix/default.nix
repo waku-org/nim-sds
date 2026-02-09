@@ -1,8 +1,6 @@
 {
   pkgs,
   src ? ../.,
-  # Nimbus-build-system package (used only for pinned Nim compiler).
-  nim ? null,
   # Options: 0,1,2
   verbosity ? 2,
   # Build targets (e.g., ["libsds"], ["libsds-android-arm64"])

@@ -32,8 +32,7 @@ nix build --print-out-paths '.?submodules=1#libsds-android-x86'
 nix build --print-out-paths '.?submodules=1#libsds-android-arm'
 ```
 
-<details>
-<summary>Development shell</summary>
+### Development shell
 
 Enter the dev shell (sets up vendored dependencies automatically):
 ```bash
@@ -62,10 +61,7 @@ nim test sds.nims
 
 The built library is output to `build/`.
 
-</details>
-
-<details>
-<summary>Android (without Nix)</summary>
+### Android (without Nix)
 
 Download the latest Android NDK. For example, on Ubuntu with Intel:
 
@@ -100,8 +96,6 @@ ARCH=arm64 ANDROID_ARCH=aarch64-linux-android ARCH_DIRNAME=aarch64-linux-android
 | arm | `arm` | `armv7a-linux-androideabi` | `arm-linux-androideabi` |
 
 The library is output to `build/libsds.so`.
-
-</details>
 
 ## Maintenance
 

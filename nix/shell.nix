@@ -1,6 +1,5 @@
 {
   pkgs ? import <nixpkgs> { },
-  nim ? null,
 }:
 
 let
