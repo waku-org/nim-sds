@@ -48,8 +48,15 @@ proc getArch(): string =
 
 # Tasks
 task test, "Run the test suite":
-  exec "nim c -r tests/test_bloom.nim"
-  exec "nim c -r tests/test_reliability.nim"
+  var extraFlags = ""
+  when defined(macosx):
+    let arch = getArch()
+    if arch == "arm64":
+      extraFlags = "--cpu:arm64 "
+    else:
+      extraFlags = "--cpu:amd64 "
+  exec "nim c -r " & extraFlags & "tests/test_bloom.nim"
+  exec "nim c -r " & extraFlags & "tests/test_reliability.nim"
 
 task libsdsDynamicWindows, "Generate bindings":
   let outLibNameAndExt = "libsds.dll"

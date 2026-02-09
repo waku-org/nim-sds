@@ -140,7 +140,10 @@ in stdenv.mkDerivation {
 
   buildPhase = ''
     export NIMBLE_DIR="$(pwd)/vendor/.nimble"
-
+  '' + lib.optionalString isAndroidBuild ''
+    # Add NDK toolchain to PATH so Nim can find clang for Android cross-compilation
+    export PATH="$(echo $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/*/bin):$PATH"
+  '' + ''
     ${lib.concatMapStringsSep "\n" buildCommandForTarget targets}
   '';
 
