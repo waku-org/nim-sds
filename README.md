@@ -1,16 +1,30 @@
-# nim-e2e-reliability
-Nim implementation of the e2e reliability protocol
+# nim-sds
+
+Nim implementation of the e2e reliability protocol.
+
+## Quick start
+
+```bash
+# Build the shared library
+nix build '.?submodules=1#libsds'
+
+# Run tests
+nix develop '.?submodules=1' --command nim test sds.nims
+
+# Clean the Nix store
+nix run '.#clean'
+```
 
 ## Building
 
-### Nix (recommended)
+### Desktop
 
-Build the shared library:
 ```bash
 nix build --print-out-paths '.?submodules=1#libsds'
 ```
 
-Build for Android:
+### Android
+
 ```bash
 nix build --print-out-paths '.?submodules=1#libsds-android-arm64'
 nix build --print-out-paths '.?submodules=1#libsds-android-amd64'
@@ -18,14 +32,15 @@ nix build --print-out-paths '.?submodules=1#libsds-android-x86'
 nix build --print-out-paths '.?submodules=1#libsds-android-arm'
 ```
 
-### Development shell
+<details>
+<summary>Development shell</summary>
 
 Enter the dev shell (sets up vendored dependencies automatically):
 ```bash
 nix develop '.?submodules=1'
 ```
 
-Then build directly with nim:
+Then build directly with Nim:
 ```bash
 # Linux
 nim libsdsDynamicLinux sds.nims
@@ -42,12 +57,15 @@ nim libsdsStaticWindows sds.nims
 
 Run tests:
 ```bash
-nimble test
+nim test sds.nims
 ```
 
 The built library is output to `build/`.
 
-### Android (without Nix)
+</details>
+
+<details>
+<summary>Android (without Nix)</summary>
 
 Download the latest Android NDK. For example, on Ubuntu with Intel:
 
@@ -82,3 +100,12 @@ ARCH=arm64 ANDROID_ARCH=aarch64-linux-android ARCH_DIRNAME=aarch64-linux-android
 | arm | `arm` | `armv7a-linux-androideabi` | `arm-linux-androideabi` |
 
 The library is output to `build/libsds.so`.
+
+</details>
+
+## Maintenance
+
+```bash
+# Clean unreferenced Nix store packages
+nix run '.#clean'
+```
