@@ -3,45 +3,86 @@ permissions:
   contents: read
   pull-requests: read
   checks: write
+
 on:
   pull_request:
     branches: [master]
 
 jobs:
-  build:
+  # Fast check — catches eval errors without building
+  check:
+    name: 'flake check'
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: 'Nix flake check'
+        run: nix flake check '.?submodules=1' --accept-flake-config
+
+  # Run tests on both platforms
+  test:
+    name: 'test / ${{ matrix.system }}'
     strategy:
       fail-fast: false
       matrix:
-        system:
-          - aarch64-darwin
-          - x86_64-linux
-        nixpkg:
-          - libsds
-          - libsds-android-arm64
-          - libsds-android-amd64
-          - libsds-android-x86
-          - libsds-android-arm
-
         include:
-          - system: aarch64-darwin
-            runs_on: [self-hosted, macOS, ARM64]
-
           - system: x86_64-linux
             runs_on: [self-hosted, Linux, X64]
-
-    name: '${{ matrix.system }} / ${{ matrix.nixpkg }}'
+          - system: aarch64-darwin
+            runs_on: [self-hosted, macOS, ARM64]
     runs-on: ${{ matrix.runs_on }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: 'Run tests'
+        run: |
+          nix develop '.?submodules=1' --accept-flake-config --command \
+            nimble test
 
-      - name: 'Run Nix build for ${{ matrix.nixpkg }}'
-        shell: bash
+  # Build desktop library
+  build-desktop:
+    name: '${{ matrix.system }} / libsds'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: aarch64-darwin
+            runs_on: [self-hosted, macOS, ARM64]
+          - system: x86_64-linux
+            runs_on: [self-hosted, Linux, X64]
+    runs-on: ${{ matrix.runs_on }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: 'Build libsds'
+        run: |
+          nix build -L '.?submodules=1#libsds' \
+            --print-out-paths --accept-flake-config
+      - name: 'Verify output'
+        run: file result/lib/*
+
+  # Build Android targets only on Linux — avoids macOS cross-compile issues
+  build-android:
+    name: 'x86_64-linux / ${{ matrix.nixpkg }}'
+    strategy:
+      fail-fast: false
+      matrix:
+        nixpkg:
+          - libsds-android-arm64
+          - libsds-android-amd64
+          - libsds-android-x86
+          - libsds-android-arm
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: 'Build ${{ matrix.nixpkg }}'
         run: |
           nix build -L '.?submodules=1#${{ matrix.nixpkg }}' \
             --print-out-paths --accept-flake-config
-
-      - name: 'Show result contents'
-        shell: bash
-        run: find result/ -type f
+      - name: 'Verify output'
+        run: file result/jni/**/* 2>/dev/null || file result/lib/*
