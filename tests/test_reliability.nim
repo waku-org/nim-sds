@@ -1,5 +1,5 @@
 import unittest, results, chronos, std/[times, options, tables]
-import ../src/[reliability, message, protobuf, reliability_utils, rolling_bloom_filter]
+import sds
 
 const testChannel = "testChannel"
 
