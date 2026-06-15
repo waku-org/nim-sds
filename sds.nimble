@@ -16,7 +16,9 @@ requires "stew"
 requires "stint"
 requires "metrics"
 requires "results"
-requires "https://github.com/logos-messaging/nim-ffi >= 0.1.4"
+# Only library/ (the FFI wrapper) uses nim-ffi, not core sds/. Keep the floor
+# low so core-only consumers aren't forced up; nimble.lock pins library/'s version.
+requires "https://github.com/logos-messaging/nim-ffi >= 0.1.3"
 
 proc buildLibrary(
     outLibNameAndExt: string,
