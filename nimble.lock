@@ -209,7 +209,7 @@
       }
     },
     "ffi": {
-      "version": "#v0.1.5-rc.2",
+      "version": "0.1.5",
       "vcsRevision": "0a6bf6c49ff8d956899c2a3bb3a2b3ab8ed5281f",
       "url": "https://github.com/logos-messaging/nim-ffi",
       "downloadMethod": "git",
