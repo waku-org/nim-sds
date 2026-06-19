@@ -16,7 +16,7 @@ requires "stew"
 requires "stint"
 requires "metrics"
 requires "results"
-requires "https://github.com/logos-messaging/nim-ffi#v0.1.5-rc.1"
+requires "https://github.com/logos-messaging/nim-ffi#v0.1.5"
 
 proc buildLibrary(
     outLibNameAndExt: string,
@@ -188,10 +188,10 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   exec "ar rcs " & aFileTmp & " " & objectFiles.join(" ")
 
   # 4) Use libtool to localize all non-public symbols
-  # Keep only Sds* functions as global, hide everything else to prevent conflicts
+  # Keep only sds_* functions as global, hide everything else to prevent conflicts
   # with nim runtime symbols from libnim_status_client
   let keepSymbols =
-    "_Sds*:_libsdsNimMain:_libsdsDatInit*:_libsdsInit*:_NimMainModule__libsds*"
+    "_sds_*:_libsdsNimMain:_libsdsDatInit*:_libsdsInit*:_NimMainModule__libsds*"
   exec "xcrun libtool -static -o " & aFile & " " & aFileTmp &
     " -exported_symbols_list /dev/stdin <<< '" & keepSymbols & "' 2>/dev/null || cp " &
     aFileTmp & " " & aFile
