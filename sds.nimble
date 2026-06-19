@@ -16,7 +16,8 @@ requires "stew"
 requires "stint"
 requires "metrics"
 requires "results"
-requires "https://github.com/logos-messaging/nim-ffi#v0.1.5-rc.1"
+requires "https://github.com/logos-messaging/nim-ffi#fix/foreign-host-concurrency-v0.2"
+requires "https://github.com/vacp2p/nim-cbor-serialization#v0.3.0"
 
 proc buildLibrary(
     outLibNameAndExt: string,
