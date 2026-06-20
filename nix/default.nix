@@ -81,6 +81,7 @@ in stdenv.mkDerivation {
   version = "${version}-${revision}";
 
   env = {
+    SDS_NIX_DEPS = "1";
     NIMFLAGS = "-d:disableMarchNative";
     ANDROID_SDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.sdk;
     ANDROID_NDK_ROOT = optionalString isAndroidBuild pkgs.androidPkgs.ndk;

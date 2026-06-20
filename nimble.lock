@@ -1,16 +1,6 @@
 {
   "version": 2,
   "packages": {
-    "nim": {
-      "version": "2.2.10",
-      "vcsRevision": "9fe2137fa2f3f66cf5a44f357d461829ac9e20c4",
-      "url": "https://github.com/nim-lang/Nim.git",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "17ec440fdb89f8903db29a17898af590087d2b64"
-      }
-    },
     "unittest2": {
       "version": "0.2.5",
       "vcsRevision": "26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189",
@@ -181,7 +171,7 @@
       }
     },
     "cbor_serialization": {
-      "version": "#v0.3.0",
+      "version": "0.3.0",
       "vcsRevision": "1664160e04d153573373afddc552b9cbf6fbe4dc",
       "url": "https://github.com/vacp2p/nim-cbor-serialization",
       "downloadMethod": "git",
@@ -254,7 +244,7 @@
       }
     },
     "ffi": {
-      "version": "#fix/foreign-host-concurrency-v0.2",
+      "version": "0.2.0",
       "vcsRevision": "c3d135f46f809e09602d44f48949c2a4b2688e37",
       "url": "https://github.com/logos-messaging/nim-ffi",
       "downloadMethod": "git",
