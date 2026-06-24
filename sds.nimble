@@ -24,7 +24,7 @@ requires "results"
 when existsEnv("SDS_NIX_DEPS"):
   requires "ffi >= 0.2.0"
 else:
-  requires "https://github.com/logos-messaging/nim-ffi#v0.2.0-rc.1"
+  requires "https://github.com/logos-messaging/nim-ffi#a66c53a34b8c44cbb952294585942ca4434a9321"
 requires "https://github.com/vacp2p/nim-cbor-serialization#v0.3.0"
 
 proc buildLibrary(
