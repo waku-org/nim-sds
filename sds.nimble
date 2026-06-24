@@ -19,6 +19,8 @@ requires "results"
 # nim-ffi isn't in the nimble registry, so a plain `nimble` build fetches it by
 # URL. The Nix build pre-populates deps offline (can't clone) and sets
 # SDS_NIX_DEPS to resolve it by name from the installed pkgs2 instead.
+# This branch adopts the nim-ffi 0.2 CBOR ABI, so it pins v0.2.0-rc.1 and
+# overrides master's relaxed >= 0.1.3 floor (which exists for core-only consumers).
 when existsEnv("SDS_NIX_DEPS"):
   requires "ffi >= 0.2.0"
 else:
