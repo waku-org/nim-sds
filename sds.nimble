@@ -193,7 +193,7 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   writeFile(objListFile, objectFiles.join("\n"))
   let mergedObj = outDir & "/libsds_merged.o"
   exec "xcrun ld -r -arch " & clangArch & " -exported_symbol '_Sds*' -o " & mergedObj &
-    " @" & objListFile
+    " -filelist " & objListFile
   exec "ar rcs " & aFile & " " & mergedObj
   exec "rm -f " & mergedObj & " " & objListFile
 
