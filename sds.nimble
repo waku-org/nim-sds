@@ -1,7 +1,7 @@
 import strutils, os
 
 # Package
-version = "0.3.0"
+version = "0.4.0"
 author = "Logos Messaging Team"
 description = "E2E Scalable Data Sync API"
 license = "MIT"
@@ -10,15 +10,22 @@ srcDir = "sds"
 # Dependencies
 requires "nim >= 2.2.4"
 requires "chronos >= 4.0.4"
-requires "libp2p >= 1.15.2"
+requires "protobuf_serialization >= 0.5.0"
 requires "chronicles"
 requires "stew"
 requires "stint"
 requires "metrics"
 requires "results"
-# Only library/ (the FFI wrapper) uses nim-ffi, not core sds/. Keep the floor
-# low so core-only consumers aren't forced up; nimble.lock pins library/'s version.
-requires "https://github.com/logos-messaging/nim-ffi >= 0.1.3"
+# nim-ffi isn't in the nimble registry, so a plain `nimble` build fetches it by
+# URL. The Nix build pre-populates deps offline (can't clone) and sets
+# SDS_NIX_DEPS to resolve it by name from the installed pkgs2 instead.
+# This branch adopts the nim-ffi 0.2 CBOR ABI, so it pins v0.2.0-rc.1 and
+# overrides master's relaxed >= 0.1.3 floor (which exists for core-only consumers).
+when existsEnv("SDS_NIX_DEPS"):
+  requires "ffi >= 0.2.0"
+else:
+  requires "https://github.com/logos-messaging/nim-ffi#a66c53a34b8c44cbb952294585942ca4434a9321"
+requires "https://github.com/vacp2p/nim-cbor-serialization#v0.3.0"
 
 proc buildLibrary(
     outLibNameAndExt: string,
@@ -32,16 +39,16 @@ proc buildLibrary(
 
   if `type` == "static":
     exec "nim c" & " --out:build/" & outLibNameAndExt &
-      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
+      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
       extra_params & " " & srcDir & name & ".nim"
   else:
     when defined(windows):
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
         extra_params & " " & srcDir & name & ".nim"
     else:
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
         extra_params & " " & srcDir & name & ".nim"
 
 proc getMyCpu(): string =
@@ -160,8 +167,8 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   # Use unique symbol prefix to avoid conflicts with other Nim libraries
   exec "nim c" & " --nimcache:" & nimcacheDir & " --os:ios --cpu:" & cpu &
     " --compileOnly:on" & " --noMain --mm:refc" & " --threads:on --opt:size --header" &
-    " --nimMainPrefix:libsds" & " --cc:clang" & " -d:useMalloc" & " " & srcDir &
-    "/libsds.nim"
+    " --nimMainPrefix:libsds" & " --cc:clang" & " -d:useMalloc" & " -d:noSignalHandler" &
+    " " & srcDir & "/libsds.nim"
 
   # 2) Compile all generated C files to object files with hidden visibility
   # This prevents symbol conflicts with other Nim libraries (e.g., libnim_status_client)
@@ -258,6 +265,7 @@ proc buildMobileAndroid(srcDir = ".", extra_params = "") =
   exec "nim c" &
     " --out:" & outDir & "/libsds.so" &
     " --threads:on --app:lib --opt:size --noMain --mm:refc --nimMainPrefix:libsds" &
+    " -d:noSignalHandler" &
     " --cc:clang" &
     " --clang.exe:\"" & ndkClang & "\"" &
     " --clang.linkerexe:\"" & ndkClang & "\"" &
