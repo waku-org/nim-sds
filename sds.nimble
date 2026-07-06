@@ -6,6 +6,8 @@ author = "Logos Messaging Team"
 description = "E2E Scalable Data Sync API"
 license = "MIT"
 srcDir = "sds"
+# Keep the repo layout in installed copies
+installDirs = @["library", "sds"]
 
 # Dependencies
 requires "nim >= 2.2.4"
@@ -16,9 +18,25 @@ requires "stew"
 requires "stint"
 requires "metrics"
 requires "results"
-# Only library/ (the FFI wrapper) uses nim-ffi, not core sds/. Keep the floor
-# low so core-only consumers aren't forced up; nimble.lock pins library/'s version.
-requires "https://github.com/logos-messaging/nim-ffi >= 0.1.3"
+# Only library/ (the FFI wrapper) uses nim-ffi, not core sds/.
+# Pinned to the exact revision this repo's nimble.lock certifies (0.1.4).
+# A range here (">= 0.1.3 & < 0.2.0" — nim-ffi 0.2.0 removed callEventCallback,
+# a breaking API change) makes nimble 0.22.3 enumerate every nim-ffi tag during
+# graph expansion, and nim-ffi 0.2.0's `cbor_serialization@0.3.0` requirement
+# hard-fails that expansion ("Dependency cbor_serialization not found in the
+# graph") instead of being pruned by the cap — so consumers with an unlocked
+# graph cannot resolve at all. A #hash special version binds directly and
+# skips tag enumeration. Revisit when library/ is ported to the 0.2 API or
+# nimble's expansion learns to prune unsatisfiable candidates.
+requires "https://github.com/logos-messaging/nim-ffi#fb25f069d2dfae2b543d79d2c1a81f197de22a2b"
+
+proc envNimFlags(): string =
+  ## Extra Nim flags injected by the invoking environment via the NIMFLAGS
+  ## env var. Lets embedders (a consumer workspace building libsds from its
+  ## own dependency resolution) pass e.g. --skipParentCfg and --path flags.
+  ## Appended after the task's own flags so the environment wins.
+  let flags = getEnv("NIMFLAGS")
+  if flags.len > 0: " " & flags else: ""
 
 proc buildLibrary(
     outLibNameAndExt: string,
@@ -33,16 +51,16 @@ proc buildLibrary(
   if `type` == "static":
     exec "nim c" & " --out:build/" & outLibNameAndExt &
       " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
-      extra_params & " " & srcDir & name & ".nim"
+      extra_params & envNimFlags() & " " & srcDir & name & ".nim"
   else:
     when defined(windows):
       exec "nim c" & " --out:build/" & outLibNameAndExt &
         " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
-        extra_params & " " & srcDir & name & ".nim"
+        extra_params & envNimFlags() & " " & srcDir & name & ".nim"
     else:
       exec "nim c" & " --out:build/" & outLibNameAndExt &
         " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
-        extra_params & " " & srcDir & name & ".nim"
+        extra_params & envNimFlags() & " " & srcDir & name & ".nim"
 
 proc getMyCpu(): string =
   ## Returns a Nim-compatible CPU name (e.g. amd64, arm64) for the host.
@@ -122,21 +140,61 @@ task libsdsStaticLinux, "Generate bindings":
     "static"
 
 task libsdsStaticMac, "Generate bindings":
-  let outLibNameAndExt = "libsds.a"
-  let name = "libsds"
+  # Same symbol localization as the iOS build (see buildMobileIOS): the archive
+  # exports only the _Sds* API, so libsds's embedded Nim runtime cannot clash
+  # with the Nim runtime of a consumer executable that links the archive.
+  let srcDir = "./library"
+  let outDir = "build"
+  let nimcacheDir = outDir & "/nimcache"
+  if dirExists nimcacheDir:
+    rmDir nimcacheDir
+  if not dirExists outDir:
+    mkDir outDir
 
+  let aFile = outDir & "/libsds.a"
   let cpu = getMyCpu()
   let clangArch = if cpu == "amd64": "x86_64" else: cpu
   let sdkPath = staticExec("xcrun --show-sdk-path").strip()
-  let archFlags =
-    "--cpu:" & cpu & " --passC:\"-arch " & clangArch & "\" --passL:\"-arch " & clangArch &
-    "\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
-  buildLibrary outLibNameAndExt,
-    name,
-    "library/",
-    archFlags &
-      " -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE",
-    "static"
+
+  # 1) Generate C sources from Nim (no linking)
+  exec "nim c" & " --nimcache:" & nimcacheDir & " --cpu:" & cpu &
+    " --compileOnly:on" & " --noMain --mm:refc" & " --threads:on --opt:size --header" &
+    " --nimMainPrefix:libsds" & " --cc:clang" & " -d:useMalloc" &
+    " -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on" &
+    " -d:chronicles_log_level=TRACE" & envNimFlags() &
+    " " & srcDir & "/libsds.nim"
+
+  # 2) Compile the generated C files with hidden visibility (see buildMobileIOS
+  # for the nimbase.h lookup and the -fno-common rationale)
+  let (nimBin, _) = gorgeEx("which nim")
+  let nimLibFromBin = parentDir(parentDir(nimBin.strip())) / "lib"
+  let nimLibChoosenim = getHomeDir() / ".choosenim/toolchains/nim-" & NimVersion & "/lib"
+  let nimLibDir =
+    if fileExists(nimLibFromBin / "nimbase.h"): nimLibFromBin
+    else: nimLibChoosenim
+  let clangFlags =
+    "-arch " & clangArch & " -isysroot " & sdkPath & " -I" & nimLibDir &
+    " -O2 -fvisibility=hidden -fno-common"
+
+  var objectFiles: seq[string] = @[]
+  for cFile in listFiles(nimcacheDir):
+    if cFile.endsWith(".c"):
+      let oFile = cFile.changeFileExt("o")
+      exec "clang " & clangFlags & " -c " & cFile & " -o " & oFile
+      objectFiles.add(oFile)
+
+  # 3) Merge into one object exporting only the _Sds* API
+  let objListFile = outDir & "/objects.txt"
+  writeFile(objListFile, objectFiles.join("\n"))
+  let mergedObj = outDir & "/libsds_merged.o"
+  exec "xcrun ld -r -arch " & clangArch & " -exported_symbol '_Sds*' -o " & mergedObj &
+    " -filelist " & objListFile
+  # ZERO_AR_DATE: zero the ar header mtimes so an unchanged rebuild yields a
+  # byte-identical archive (embedders gate copies/relinks on content compares).
+  exec "ZERO_AR_DATE=1 ar rcs " & aFile & " " & mergedObj
+  exec "rm -f " & mergedObj & " " & objListFile
+
+  echo "✔ macOS static library created: " & aFile
 
 # Build Mobile iOS
 proc buildMobileIOS(srcDir = ".", sdkPath = "") =
@@ -160,8 +218,8 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   # Use unique symbol prefix to avoid conflicts with other Nim libraries
   exec "nim c" & " --nimcache:" & nimcacheDir & " --os:ios --cpu:" & cpu &
     " --compileOnly:on" & " --noMain --mm:refc" & " --threads:on --opt:size --header" &
-    " --nimMainPrefix:libsds" & " --cc:clang" & " -d:useMalloc" & " " & srcDir &
-    "/libsds.nim"
+    " --nimMainPrefix:libsds" & " --cc:clang" & " -d:useMalloc" & envNimFlags() &
+    " " & srcDir & "/libsds.nim"
 
   # 2) Compile all generated C files to object files with hidden visibility
   # This prevents symbol conflicts with other Nim libraries (e.g., libnim_status_client)
@@ -174,9 +232,14 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   let nimLibDir =
     if fileExists(nimLibFromBin / "nimbase.h"): nimLibFromBin
     else: nimLibChoosenim
+  # -fno-common: tentative definitions (uninitialized globals) become regular
+  # data symbols. Without it they stay "common" symbols, which the ld -r
+  # -exported_symbol pass below cannot localize, leaking ~550 Nim-runtime
+  # globals (chronos/chronicles vars) past the _Sds*-only export surface.
   let clangFlags =
     "-arch " & clangArch & " -isysroot " & sdkPath & " -I" & nimLibDir &
-    " -fembed-bitcode -miphoneos-version-min=16.2 -O2" & " -fvisibility=hidden"
+    " -fembed-bitcode -miphoneos-version-min=16.2 -O2" &
+    " -fvisibility=hidden -fno-common"
 
   var objectFiles: seq[string] = @[]
   for cFile in listFiles(nimcacheDir):
@@ -194,7 +257,9 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   let mergedObj = outDir & "/libsds_merged.o"
   exec "xcrun ld -r -arch " & clangArch & " -exported_symbol '_Sds*' -o " & mergedObj &
     " -filelist " & objListFile
-  exec "ar rcs " & aFile & " " & mergedObj
+  # ZERO_AR_DATE: zero the ar header mtimes so an unchanged rebuild yields a
+  # byte-identical archive (embedders gate copies/relinks on content compares).
+  exec "ZERO_AR_DATE=1 ar rcs " & aFile & " " & mergedObj
   exec "rm -f " & mergedObj & " " & objListFile
 
   echo "✔ iOS library created: " & aFile
@@ -275,7 +340,7 @@ proc buildMobileAndroid(srcDir = ".", extra_params = "") =
     " --passL:-llog" &
     " -d:chronicles_sinks=textlines[dynamic]" &
     " --header" &
-    " " & extra_params &
+    " " & extra_params & envNimFlags() &
     " " & srcDir & "/libsds.nim"
 
 task libsdsAndroid, "Build the mobile bindings for Android (uses ARCH env var)":
