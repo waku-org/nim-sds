@@ -1,4 +1,5 @@
 import libp2p/protobuf/minprotobuf
+import std/tables
 import endians
 import ../src/[message, protobufutil, bloom, reliability_utils]
 
@@ -8,13 +9,18 @@ proc encode*(msg: SdsMessage): ProtoBuffer =
   pb.write(1, msg.messageId)
   pb.write(2, uint64(msg.lamportTimestamp))
 
+  # Field 3 stays wire-compatible with pre-retrieval-hint nodes (v0.2.x): a
+  # repeated string of message IDs. Retrieval hints ride in the additive field 7
+  # (repeated HistoryEntry submessage, keyed by message ID), which older nodes
+  # skip as an unknown field while still reading the causal history correctly.
   for entry in msg.causalHistory:
-    var entryPb = initProtoBuffer()
-    entryPb.write(1, entry.messageId)
+    pb.write(3, entry.messageId)
     if entry.retrievalHint.len > 0:
-      entryPb.write(2, entry.retrievalHint)
-    entryPb.finish()
-    pb.write(3, entryPb.buffer)
+      var hintPb = initProtoBuffer()
+      hintPb.write(1, entry.messageId)
+      hintPb.write(2, entry.retrievalHint)
+      hintPb.finish()
+      pb.write(7, hintPb.buffer)
 
   pb.write(4, msg.channelId)
   pb.write(5, msg.content)
@@ -35,24 +41,28 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
     return err(ProtobufError.missingRequiredField("lamportTimestamp"))
   msg.lamportTimestamp = int64(timestamp)
 
-  # Handle both old and new causal history formats
-  var historyBuffers: seq[seq[byte]]
-  if pb.getRepeatedField(3, historyBuffers).isOk():
-    # New format: repeated HistoryEntry
-    for histBuffer in historyBuffers:
-      let entryPb = initProtoBuffer(histBuffer)
-      var entry: HistoryEntry
-      if not ?entryPb.getField(1, entry.messageId):
-        return err(ProtobufError.missingRequiredField("HistoryEntry.messageId"))
-      # retrievalHint is optional
-      discard entryPb.getField(2, entry.retrievalHint)
-      msg.causalHistory.add(entry)
-  else:
-    # Try old format: repeated string
-    var causalHistory: seq[SdsMessageID]
-    let histResult = pb.getRepeatedField(3, causalHistory)
-    if histResult.isOk():
-      msg.causalHistory = toCausalHistory(causalHistory)
+  # Causal history: field 3 is a repeated string of message IDs (as understood
+  # by every SDS version). Optional retrieval hints arrive in the additive
+  # field 7 (repeated HistoryEntry submessage keyed by message ID) and are
+  # simply absent on messages from pre-retrieval-hint nodes.
+  var messageIds: seq[SdsMessageID]
+  if pb.getRepeatedField(3, messageIds).isOk():
+    var hints = initTable[SdsMessageID, seq[byte]]()
+    var hintBuffers: seq[seq[byte]]
+    if pb.getRepeatedField(7, hintBuffers).isOk():
+      for hintBuffer in hintBuffers:
+        let hintPb = initProtoBuffer(hintBuffer)
+        var hintId: SdsMessageID
+        var hint: seq[byte]
+        # Malformed/partial hints are ignored: they never break decoding, since
+        # the message ID (field 3) already carries the authoritative dependency.
+        if hintPb.getField(1, hintId).valueOr(false) and
+            hintPb.getField(2, hint).valueOr(false):
+          hints[hintId] = hint
+    for messageId in messageIds:
+      msg.causalHistory.add(
+        HistoryEntry(messageId: messageId, retrievalHint: hints.getOrDefault(messageId))
+      )
 
   if not ?pb.getField(4, msg.channelId):
     return err(ProtobufError.missingRequiredField("channelId"))

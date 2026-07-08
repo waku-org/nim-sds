@@ -50,6 +50,7 @@ proc getArch(): string =
 task test, "Run the test suite":
   exec "nim c -r tests/test_bloom.nim"
   exec "nim c -r tests/test_reliability.nim"
+  exec "nim c -r tests/test_wire_compat.nim"
 
 task libsdsDynamicWindows, "Generate bindings":
   let outLibNameAndExt = "libsds.dll"
