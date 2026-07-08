@@ -10,9 +10,11 @@ proc encode*(msg: SdsMessage): ProtoBuffer =
   pb.write(2, uint64(msg.lamportTimestamp))
 
   # Field 3 stays wire-compatible with pre-retrieval-hint nodes (v0.2.x): a
-  # repeated string of message IDs. Retrieval hints ride in the additive field 7
+  # repeated string of message IDs. Retrieval hints ride in the additive field 8
   # (repeated HistoryEntry submessage, keyed by message ID), which older nodes
   # skip as an unknown field while still reading the causal history correctly.
+  # Field 8 matches the v0.4/SDS-R line so v0.3.x and v0.4.x agree on the wire
+  # (v0.4 uses field 7 for the message-level senderId).
   for entry in msg.causalHistory:
     pb.write(3, entry.messageId)
     if entry.retrievalHint.len > 0:
@@ -20,7 +22,7 @@ proc encode*(msg: SdsMessage): ProtoBuffer =
       hintPb.write(1, entry.messageId)
       hintPb.write(2, entry.retrievalHint)
       hintPb.finish()
-      pb.write(7, hintPb.buffer)
+      pb.write(8, hintPb.buffer)
 
   pb.write(4, msg.channelId)
   pb.write(5, msg.content)
@@ -43,13 +45,13 @@ proc decode*(T: type SdsMessage, buffer: seq[byte]): ProtobufResult[T] =
 
   # Causal history: field 3 is a repeated string of message IDs (as understood
   # by every SDS version). Optional retrieval hints arrive in the additive
-  # field 7 (repeated HistoryEntry submessage keyed by message ID) and are
+  # field 8 (repeated HistoryEntry submessage keyed by message ID) and are
   # simply absent on messages from pre-retrieval-hint nodes.
   var messageIds: seq[SdsMessageID]
   if pb.getRepeatedField(3, messageIds).isOk():
     var hints = initTable[SdsMessageID, seq[byte]]()
     var hintBuffers: seq[seq[byte]]
-    if pb.getRepeatedField(7, hintBuffers).isOk():
+    if pb.getRepeatedField(8, hintBuffers).isOk():
       for hintBuffer in hintBuffers:
         let hintPb = initProtoBuffer(hintBuffer)
         var hintId: SdsMessageID
