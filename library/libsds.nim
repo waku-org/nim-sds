@@ -13,10 +13,16 @@
 import std/[base64, json]
 import ffi
 import sds
-import ./events/[
-  json_message_ready_event, json_message_sent_event, json_missing_dependencies_event,
-  json_periodic_sync_event, json_repair_ready_event,
-]
+import
+  ./events/[
+    json_message_ready_event, json_message_sent_event, json_missing_dependencies_event,
+    json_periodic_sync_event, json_repair_ready_event,
+  ]
+
+# Frees memory the retrieval-hint provider allocated with malloc (the Go
+# binding's C.CBytes). Must match that allocator — Nim's deallocShared here
+# corrupts Nim's own heap.
+proc c_free(p: pointer) {.importc: "free", header: "<stdlib.h>".}
 
 # Bootstrap (pragmas, linker flags, libsdsNimMain, initializeLibrary) plus the
 # `sds_set_event_callback(ctx, callback, userData)` C export. It also declares
@@ -114,7 +120,10 @@ proc sdsCreate*(
     if not hint.isNil() and hintLen > 0:
       var hintBytes = newSeq[byte](hintLen)
       copyMem(addr hintBytes[0], hint, hintLen)
-      deallocShared(hint)
+      # The provider allocates `hint` with malloc (the Go binding's C.CBytes)
+      # and hands us ownership; free it with libc free. Nim's deallocShared here
+      # corrupts Nim's allocator (SIGSEGV in deallocBigChunk/avltree).
+      c_free(hint)
       return hintBytes
     return @[]
 
@@ -219,9 +228,7 @@ proc sds_set_retrieval_hint_provider(
     try:
       ffi_context.sendRequestToFFIThread(
         ctx,
-        SdsSetHintReq.ffiNewReq(
-          sdsNoopCallback, nil, cast[pointer](callback), userData
-        ),
+        SdsSetHintReq.ffiNewReq(sdsNoopCallback, nil, cast[pointer](callback), userData),
       )
     except Exception as exc:
       Result[void, string].err("sendRequestToFFIThread exception: " & exc.msg)
