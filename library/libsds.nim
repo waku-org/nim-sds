@@ -1,10 +1,16 @@
 import std/[strutils, sequtils, json, base64, locks]
 import ffi
 import sds
-import ./events/[
-  json_message_ready_event, json_message_sent_event, json_missing_dependencies_event,
-  json_periodic_sync_event, json_repair_ready_event,
-]
+import
+  ./events/[
+    json_message_ready_event, json_message_sent_event, json_missing_dependencies_event,
+    json_periodic_sync_event, json_repair_ready_event,
+  ]
+
+# Frees memory the retrieval-hint provider allocated with malloc (the Go
+# binding's C.CBytes). Must match that allocator — Nim's deallocShared here
+# corrupts Nim's own heap.
+proc c_free(p: pointer) {.importc: "free", header: "<stdlib.h>".}
 
 # Emit the library bootstrap: the {.exported.}/{.callback.} pragmas, the
 # `-fPIC`/soname linker flags, the `libsdsNimMain` import and the
@@ -160,7 +166,10 @@ proc onRetrievalHint(ctx: ptr FFIContext[ReliabilityManager]): RetrievalHintProv
     if not hint.isNil() and hintLen > 0:
       var hintBytes = newSeq[byte](hintLen)
       copyMem(addr hintBytes[0], hint, hintLen)
-      deallocShared(hint)
+      # The provider allocates `hint` with malloc (the Go binding's C.CBytes)
+      # and hands us ownership; free it with libc free. Nim's deallocShared here
+      # corrupts Nim's allocator (SIGSEGV in deallocBigChunk/avltree).
+      c_free(hint)
       return hintBytes
 
     return @[]
@@ -179,8 +188,12 @@ registerReqFFI(SdsCreateRmReq, ctx: ptr FFIContext[ReliabilityManager]):
       return err("Failed creating reliability manager: " & $error)
 
     await rm.setCallbacks(
-      onMessageReady(ctx), onMessageSent(ctx), onMissingDependencies(ctx),
-      onPeriodicSync(ctx), onRetrievalHint(ctx), onRepairReady(ctx),
+      onMessageReady(ctx),
+      onMessageSent(ctx),
+      onMissingDependencies(ctx),
+      onPeriodicSync(ctx),
+      onRetrievalHint(ctx),
+      onRepairReady(ctx),
     )
 
     ctx.myLib[] = rm
@@ -299,7 +312,9 @@ proc SdsNewReliabilityManager(
 
   let sendRes =
     try:
-      ffi_context.sendRequestToFFIThread(ctx, SdsCreateRmReq.ffiNewReq(callback, userData))
+      ffi_context.sendRequestToFFIThread(
+        ctx, SdsCreateRmReq.ffiNewReq(callback, userData)
+      )
     except Exception as exc:
       Result[void, string].err("sendRequestToFFIThread exception: " & exc.msg)
   if sendRes.isErr():
@@ -398,7 +413,9 @@ proc SdsWrapOutgoingMessage(
 
   let sharedMsg = copyToSharedSeqByte(message, messageLen.int)
   dispatchReq(
-    ctx, callback, userData,
+    ctx,
+    callback,
+    userData,
     SdsWrapMessageReq.ffiNewReq(callback, userData, sharedMsg, messageId, channelId),
   )
 
@@ -421,7 +438,12 @@ proc SdsUnwrapReceivedMessage(
     return RET_ERR
 
   let sharedMsg = copyToSharedSeqByte(message, messageLen.int)
-  dispatchReq(ctx, callback, userData, SdsUnwrapMessageReq.ffiNewReq(callback, userData, sharedMsg))
+  dispatchReq(
+    ctx,
+    callback,
+    userData,
+    SdsUnwrapMessageReq.ffiNewReq(callback, userData, sharedMsg),
+  )
 
 proc SdsMarkDependenciesMet(
     ctx: ptr FFIContext[ReliabilityManager],
@@ -454,7 +476,9 @@ proc SdsMarkDependenciesMet(
 
   let sharedIds = copyToSharedSeqCstr(messageIds, count.int)
   dispatchReq(
-    ctx, callback, userData,
+    ctx,
+    callback,
+    userData,
     SdsMarkDepsReq.ffiNewReq(callback, userData, sharedIds, channelId),
   )
 
@@ -466,4 +490,6 @@ proc SdsStartPeriodicTasks(
     return RET_ERR
   if isNil(callback):
     return RET_MISSING_CALLBACK
-  dispatchReq(ctx, callback, userData, SdsStartPeriodicTasksReq.ffiNewReq(callback, userData))
+  dispatchReq(
+    ctx, callback, userData, SdsStartPeriodicTasksReq.ffiNewReq(callback, userData)
+  )
