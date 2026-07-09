@@ -19,6 +19,11 @@ import
     json_periodic_sync_event,
   ]
 
+# Frees memory the retrieval-hint provider allocated with malloc (the Go
+# binding's C.CBytes). Must match that allocator — Nim's deallocShared here
+# corrupts Nim's own heap.
+proc c_free(p: pointer) {.importc: "free", header: "<stdlib.h>".}
+
 ################################################################################
 ### Wrapper around the reliability manager
 ################################################################################
@@ -63,7 +68,8 @@ var
 
 proc acquireCtx(callback: SdsCallBack, userData: pointer): ptr SdsContext =
   ctxPoolLock.acquire()
-  defer: ctxPoolLock.release()
+  defer:
+    ctxPoolLock.release()
   if ctxPool.len > 0:
     result = ctxPool.pop()
   else:
@@ -74,7 +80,8 @@ proc acquireCtx(callback: SdsCallBack, userData: pointer): ptr SdsContext =
 
 proc releaseCtx(ctx: ptr SdsContext) =
   ctxPoolLock.acquire()
-  defer: ctxPoolLock.release()
+  defer:
+    ctxPoolLock.release()
   ctx.userData = nil
   ctx.eventCallback = nil
   ctx.eventUserData = nil
@@ -105,7 +112,9 @@ proc onMessageSent(ctx: ptr SdsContext): MessageSentCallback =
       $JsonMessageSentEvent.new(messageId, channelId)
 
 proc onMissingDependencies(ctx: ptr SdsContext): MissingDependenciesCallback =
-  return proc(messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID) {.gcsafe.} =
+  return proc(
+      messageId: SdsMessageID, missingDeps: seq[HistoryEntry], channelId: SdsChannelID
+  ) {.gcsafe.} =
     callEventCallback(ctx, "onMissingDependencies"):
       $JsonMissingDependenciesEvent.new(messageId, missingDeps, channelId)
 
@@ -128,9 +137,13 @@ proc onRetrievalHint(ctx: ptr SdsContext): RetrievalHintProvider =
     if not isNil(hint) and hintLen > 0:
       var hintBytes = newSeq[byte](hintLen)
       copyMem(addr hintBytes[0], hint, hintLen)
-      deallocShared(hint)
+      # The provider (e.g. the Go binding's C.CBytes) allocates `hint` with
+      # malloc and hands us ownership, so it must be released with libc free.
+      # Using Nim's deallocShared here corrupts Nim's allocator (SIGSEGV in
+      # deallocBigChunk/avltree).
+      c_free(hint)
       return hintBytes
-    
+
     return @[]
 
 ### End of not-exported components
