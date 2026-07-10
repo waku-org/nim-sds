@@ -15,6 +15,7 @@
 
 {.push raises: [].}
 
+import std/tables
 import endians
 import protobuf_serialization
 import protobuf_serialization/pkg/results
@@ -34,11 +35,17 @@ type
   SdsMessagePB* {.proto3.} = object
     messageId* {.fieldNumber: 1.}: Opt[seq[byte]]
     lamportTimestamp* {.fieldNumber: 2, pint.}: Opt[int64]
-    causalHistory* {.fieldNumber: 3.}: seq[HistoryEntryPB]
+    # Field 3 is a repeated string/bytes of message IDs, wire-compatible with
+    # pre-SDS-R nodes (v0.2.x/v0.3.x). Richer per-entry SDS-R metadata
+    # (senderId, retrievalHint) rides in the additive field 8, keyed by message
+    # ID; older nodes skip it as an unknown field while still reading the causal
+    # history from field 3.
+    causalHistory* {.fieldNumber: 3.}: seq[seq[byte]]
     channelId* {.fieldNumber: 4.}: Opt[seq[byte]]
     content* {.fieldNumber: 5.}: Opt[seq[byte]]
     bloomFilter* {.fieldNumber: 6.}: Opt[seq[byte]]
     senderId* {.fieldNumber: 7.}: Opt[seq[byte]]
+    causalHistoryMeta* {.fieldNumber: 8.}: seq[HistoryEntryPB]
     repairRequest* {.fieldNumber: 13.}: seq[HistoryEntryPB]
 
   BloomFilterPB {.proto3.} = object
@@ -98,15 +105,26 @@ func toPB*(m: SdsMessage): SdsMessagePB =
     senderId: optBytes(m.senderId.string.toBytes),
   )
   for e in m.causalHistory:
-    pb.causalHistory.add(e.toPB)
+    pb.causalHistory.add(e.messageId.toBytes)
+    if e.retrievalHint.len > 0 or e.senderId.len > 0:
+      pb.causalHistoryMeta.add(e.toPB)
   for e in m.repairRequest:
     pb.repairRequest.add(e.toPB)
   return pb
 
 func fromPB*(pb: SdsMessagePB): SdsMessage =
+  # Rebuild causal history from field 3 (authoritative ID list) and enrich each
+  # entry with the additive field-8 metadata (senderId/retrievalHint) keyed by
+  # message ID. Messages from pre-SDS-R nodes carry no field 8, so entries
+  # decode to bare IDs.
+  var meta = initTable[SdsMessageID, HistoryEntry]()
+  for e in pb.causalHistoryMeta:
+    let he = e.fromPB
+    meta[he.messageId] = he
   var causal: seq[HistoryEntry]
-  for e in pb.causalHistory:
-    causal.add(e.fromPB)
+  for idBytes in pb.causalHistory:
+    let id = idBytes.toStr
+    causal.add(meta.getOrDefault(id, HistoryEntry.init(id)))
   var repair: seq[HistoryEntry]
   for e in pb.repairRequest:
     repair.add(e.fromPB)
