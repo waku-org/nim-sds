@@ -5,9 +5,9 @@ permissions:
   checks: write
 on:
   pull_request:
-    branches: [master]
+    branches: [master, release/*]
   push:
-    branches: [master]
+    branches: [master, release/*]
   workflow_dispatch:
 
 jobs:
@@ -145,7 +145,9 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.2'
+          # 'latest-stable' tracks whatever the macos-latest runner ships, so
+          # this survives Xcode rotations (the runner dropped 16.2 for 26.x).
+          xcode-version: 'latest-stable'
 
       - uses: jiro4989/setup-nim-action@v2
         with:

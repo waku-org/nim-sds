@@ -1,7 +1,7 @@
 import strutils, os
 
 # Package
-version = "0.3.0"
+version = "0.4.0"
 author = "Logos Messaging Team"
 description = "E2E Scalable Data Sync API"
 license = "MIT"
@@ -10,15 +10,13 @@ srcDir = "sds"
 # Dependencies
 requires "nim >= 2.2.4"
 requires "chronos >= 4.0.4"
-requires "libp2p >= 1.15.2"
+requires "protobuf_serialization >= 0.5.0"
 requires "chronicles"
 requires "stew"
 requires "stint"
 requires "metrics"
 requires "results"
-# Only library/ (the FFI wrapper) uses nim-ffi, not core sds/. Keep the floor
-# low so core-only consumers aren't forced up; nimble.lock pins library/'s version.
-requires "https://github.com/logos-messaging/nim-ffi >= 0.1.3"
+requires "https://github.com/logos-messaging/nim-ffi#v0.1.5"
 
 proc buildLibrary(
     outLibNameAndExt: string,
@@ -32,16 +30,16 @@ proc buildLibrary(
 
   if `type` == "static":
     exec "nim c" & " --out:build/" & outLibNameAndExt &
-      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
+      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
       extra_params & " " & srcDir & name & ".nim"
   else:
     when defined(windows):
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
         extra_params & " " & srcDir & name & ".nim"
     else:
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
         extra_params & " " & srcDir & name & ".nim"
 
 proc getMyCpu(): string =
@@ -71,6 +69,7 @@ task test, "Run the test suite":
   exec "nim c -r --outdir:build tests/test_reliability.nim"
   exec "nim c -r --outdir:build tests/test_persistence.nim"
   exec "nim c -r --outdir:build tests/test_snapshot_codec.nim"
+  exec "nim c -r --outdir:build tests/test_wire_compat.nim"
 
 task libsdsDynamicWindows, "Generate bindings":
   let outLibNameAndExt = "libsds.dll"
@@ -160,8 +159,8 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   # Use unique symbol prefix to avoid conflicts with other Nim libraries
   exec "nim c" & " --nimcache:" & nimcacheDir & " --os:ios --cpu:" & cpu &
     " --compileOnly:on" & " --noMain --mm:refc" & " --threads:on --opt:size --header" &
-    " --nimMainPrefix:libsds" & " --cc:clang" & " -d:useMalloc" & " " & srcDir &
-    "/libsds.nim"
+    " --nimMainPrefix:libsds" & " --cc:clang" & " -d:useMalloc" & " -d:noSignalHandler" &
+    " " & srcDir & "/libsds.nim"
 
   # 2) Compile all generated C files to object files with hidden visibility
   # This prevents symbol conflicts with other Nim libraries (e.g., libnim_status_client)
@@ -192,7 +191,7 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
   let objListFile = outDir & "/objects.txt"
   writeFile(objListFile, objectFiles.join("\n"))
   let mergedObj = outDir & "/libsds_merged.o"
-  exec "xcrun ld -r -arch " & clangArch & " -exported_symbol '_Sds*' -o " & mergedObj &
+  exec "xcrun ld -r -arch " & clangArch & " -exported_symbol '_sds_*' -o " & mergedObj &
     " -filelist " & objListFile
   exec "ar rcs " & aFile & " " & mergedObj
   exec "rm -f " & mergedObj & " " & objListFile
@@ -258,6 +257,7 @@ proc buildMobileAndroid(srcDir = ".", extra_params = "") =
   exec "nim c" &
     " --out:" & outDir & "/libsds.so" &
     " --threads:on --app:lib --opt:size --noMain --mm:refc --nimMainPrefix:libsds" &
+    " -d:noSignalHandler" &
     " --cc:clang" &
     " --clang.exe:\"" & ndkClang & "\"" &
     " --clang.linkerexe:\"" & ndkClang & "\"" &
