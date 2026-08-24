@@ -79,7 +79,7 @@ else ifeq ($(detected_OS),Linux)
 endif
 
 libsds: | deps
-	$(ENV_SCRIPT) nim $(BUILD_COMMAND) $(NIM_PARAMS) sds.nims
+	NIM_PARAMS="$(NIM_PARAMS)" $(ENV_SCRIPT) nim $(BUILD_COMMAND) sds.nims
 
 #####################
 ## Mobile Bindings ##
@@ -120,7 +120,7 @@ build-libsds-for-android-arch:
 	ANDROID_ARCH=$(ANDROID_ARCH) \
 	ANDROID_TOOLCHAIN_DIR=$(ANDROID_TOOLCHAIN_DIR) \
 	$(ENV_SCRIPT) \
-	nim libsdsAndroid $(NIM_PARAMS) sds.nims
+	NIM_PARAMS="$(NIM_PARAMS)" nim libsdsAndroid sds.nims
 
 libsds-android-arm64: ANDROID_ARCH=aarch64-linux-android
 libsds-android-arm64: ARCH=arm64
@@ -176,5 +176,5 @@ endif
 # Target iOS
 
 libsds-ios: | deps
-	$(ENV_SCRIPT) nim libsdsIOS $(NIM_PARAMS) sds.nims
+	NIM_PARAMS="$(NIM_PARAMS)" $(ENV_SCRIPT) nim libsdsIOS sds.nims
 

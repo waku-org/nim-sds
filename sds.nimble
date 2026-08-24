@@ -9,9 +9,14 @@ description = "E2E Reliability Protocol API"
 license = "MIT"
 srcDir = "src"
 
+# A dependent builds libsds from the installed package, so ship library/ too.
+installDirs = @["library", "src"]
+
 # Dependencies
 requires "nim >= 2.2.4",
-  "chronicles", "chronos", "stew", "stint", "metrics", "libp2p", "results"
+  "chronicles", "chronos", "stew", "stint", "metrics", "libp2p", "results",
+  # channels_spsc_single, which library/sds_thread needs, is gone in 0.2.x.
+  "taskpools < 0.2.0"
 
 proc buildLibrary(
     outLibNameAndExt: string,
@@ -22,22 +27,19 @@ proc buildLibrary(
 ) =
   if not dirExists "build":
     mkDir "build"
-  # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
+  let extra_params = params & " " & getEnv("NIM_PARAMS")
   if `type` == "static":
     exec "nim c" & " --out:build/" & outLibNameAndExt &
-      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
+      " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
       extra_params & " " & srcDir & name & ".nim"
   else:
     when defined(windows):
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:off " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
         extra_params & " " & srcDir & name & ".nim"
     else:
       exec "nim c" & " --out:build/" & outLibNameAndExt &
-        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds --skipParentCfg:on " &
+        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds " &
         extra_params & " " & srcDir & name & ".nim"
 
 proc getArch(): string =
@@ -133,7 +135,7 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
       " --compileOnly:on" &
       " --noMain --mm:orc" &
       " --threads:on --opt:size --header" &
-      " --nimMainPrefix:libsds --skipParentCfg:on" &
+      " --nimMainPrefix:libsds" &
       " --cc:clang" &
       " -d:useMalloc" &
       " " & srcDir & "/libsds.nim"
@@ -177,9 +179,7 @@ proc buildMobileAndroid(srcDir = ".", params = "") =
   if not dirExists outDir:
     mkDir outDir
 
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
+  let extra_params = params & " " & getEnv("NIM_PARAMS")
 
   exec "nim c" & " --out:" & outDir &
     "/libsds.so --threads:on --app:lib --opt:size --noMain --mm:refc --nimMainPrefix:libsds " &
@@ -191,3 +191,11 @@ task libsdsAndroid, "Build the mobile bindings for Android":
   let srcDir = "./library"
   let extraParams = "-d:chronicles_log_level=ERROR"
   buildMobileAndroid srcDir, extraParams
+
+task libsds, "Build the shared library for the current platform":
+  when defined(macosx):
+    exec "nimble libsdsDynamicMac"
+  elif defined(windows):
+    exec "nimble libsdsDynamicWindows"
+  else:
+    exec "nimble libsdsDynamicLinux"
