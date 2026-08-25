@@ -13,14 +13,16 @@ converter toParticipantID(s: string): SdsParticipantID =
   s.SdsParticipantID
 
 func toStr(b: seq[byte]): string =
-  result = newString(b.len)
+  var str = newString(b.len)
   if b.len > 0:
-    copyMem(addr result[0], unsafeAddr b[0], b.len)
+    copyMem(addr str[0], unsafeAddr b[0], b.len)
+  return str
 
 func toBytes(s: string): seq[byte] =
-  result = newSeq[byte](s.len)
+  var bytes = newSeq[byte](s.len)
   if s.len > 0:
-    copyMem(addr result[0], unsafeAddr s[0], s.len)
+    copyMem(addr bytes[0], unsafeAddr s[0], s.len)
+  return bytes
 
 # How a pre-SDS-R node sees the message: field 3 is a repeated string of message
 # IDs; it knows nothing of the additive field 8.
