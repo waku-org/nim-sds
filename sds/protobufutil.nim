@@ -1,20 +1,11 @@
-# Minimal hand-rolled protobuf field codec, a thin shim over
-# `nim-protobuf-serialization`'s low-level wire `codec` module.
-#
-# `sds/protobuf.nim` and `sds/snapshot_codec.nim` build messages by hand at the
-# field level — including a backward-compatible decode path the type-driven
-# `Protobuf.encode/decode` API cannot express, and required-field / always-write
-# semantics its default-value omission would break — so this exposes a small
-# accumulating `ProtoBuffer` with `write`/`getField`/`getRepeatedField`/`finish`:
-#   * unsigned integers encode as plain varints (last value wins on decode);
-#   * strings and byte seqs encode length-delimited, with no UTF-8 validation
-#     (strings are treated as opaque bytes — message ids may be binary);
-#   * a field whose stored wire type differs from the requested one is skipped,
-#     as `protoc` does; only a malformed buffer yields an error.
-#
-# On construction from bytes the buffer is parsed once, in a single forward pass
-# with the library's reader, into per-field value lists; the `getField` accessors
-# are then plain lookups rather than re-scanning the buffer for every field.
+# Minimal hand-rolled protobuf field codec over `nim-protobuf-serialization`'s
+# low-level wire `codec` module. `sds/protobuf.nim` and `sds/snapshot_codec.nim`
+# build messages field by field — including a backward-compatible decode path
+# the type-driven `Protobuf.encode/decode` API cannot express — so this exposes
+# an accumulating `ProtoBuffer` with `write`/`getField`/`getRepeatedField`/
+# `finish`. Strings are treated as opaque bytes (message ids may be binary), and
+# a field whose stored wire type differs from the requested one is skipped, as
+# `protoc` does.
 
 {.push raises: [].}
 
@@ -28,9 +19,8 @@ export results, protobuf_error
 
 type ProtoBuffer* = object ## Accumulating protobuf field buffer.
   buffer*: seq[byte]
-  ## Reads are served from these parse-once indexes (populated by `init(data)`),
-  ## keyed by field number; values are kept in wire order so last-wins / repeated
-  ## semantics fall out directly.
+  ## Parse-once indexes (populated by `init(data)`), keyed by field number and
+  ## kept in wire order so last-wins / repeated semantics fall out directly.
   varints: Table[int, seq[uint64]]
   lengthDelims: Table[int, seq[seq[byte]]]
   parseOk: bool
