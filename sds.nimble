@@ -7,6 +7,10 @@ description = "E2E Scalable Data Sync API"
 license = "MIT"
 srcDir = "sds"
 
+# A dependent builds libsds from the installed package, so ship library/ too.
+# Naming any directory turns off the default srcDir install, hence sds/ here.
+installDirs = @["library", "sds"]
+
 # Dependencies
 requires "nim >= 2.2.4"
 requires "chronos >= 4.0.4"
@@ -16,6 +20,9 @@ requires "stew"
 requires "stint"
 requires "metrics"
 requires "results"
+# nim-ffi imports taskpools/channels_spsc_single, dropped in 0.2.x, and asks
+# for taskpools unconstrained. nimble.lock already resolves 0.1.0.
+requires "taskpools < 0.2.0"
 requires "https://github.com/logos-messaging/nim-ffi#v0.1.5"
 
 proc buildLibrary(
@@ -28,19 +35,22 @@ proc buildLibrary(
   if not dirExists "build":
     mkDir "build"
 
+  # An embedder that resolves dependencies itself passes --path here.
+  let params = extra_params & " " & getEnv("NIM_PARAMS")
+
   if `type` == "static":
     exec "nim c" & " --out:build/" & outLibNameAndExt &
       " --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
-      extra_params & " " & srcDir & name & ".nim"
+      params & " " & srcDir & name & ".nim"
   else:
     when defined(windows):
       exec "nim c" & " --out:build/" & outLibNameAndExt &
         " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
-        extra_params & " " & srcDir & name & ".nim"
+        params & " " & srcDir & name & ".nim"
     else:
       exec "nim c" & " --out:build/" & outLibNameAndExt &
         " --threads:on --app:lib --opt:size --noMain --mm:refc --header --nimMainPrefix:libsds -d:noSignalHandler " &
-        extra_params & " " & srcDir & name & ".nim"
+        params & " " & srcDir & name & ".nim"
 
 proc getMyCpu(): string =
   ## Returns a Nim-compatible CPU name (e.g. amd64, arm64) for the host.
