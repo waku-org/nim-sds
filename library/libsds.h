@@ -33,27 +33,35 @@ typedef void (*SdsRetrievalHintProvider) (const char* messageId, char** hint, si
 // --- Core API Functions ---
 
 
-// Create a context + ReliabilityManager. configJson: {"participantId":"..."}
-// (empty participantId disables SDS-R). Returns the context handle, or NULL on
+// Create a context + ReliabilityManager. Returns the context handle, or NULL on
 // failure. The callback also fires on async completion.
+// configJson: {"participantId":"alice"}
+// An empty participantId disables SDS-R.
 void* sds_create(const char* configJson, SdsCallBack callback, void* userData);
 
-// Register the event callback (message_ready, message_sent,
-// missing_dependencies, periodic_sync, repair_ready). Payloads are JSON.
+// Register the event callback. Payloads are JSON, tagged by eventType:
+//   {"eventType":"message_ready","messageId":"0xdeadbeef","channelId":"my-chat"}
+//   {"eventType":"message_sent","messageId":"0xdeadbeef","channelId":"my-chat"}
+//   {"eventType":"missing_dependencies","messageId":"0xdeadbeef","channelId":"my-chat",
+//    "missingDeps":[{"messageId":"0xaaa","retrievalHint":"aGludA=="}]}
+//   {"eventType":"periodic_sync"}
+//   {"eventType":"repair_ready","message":[10,4,116,101,115,116],"channelId":"my-chat"}
 void sds_set_event_callback(void* ctx, SdsCallBack callback, void* userData);
 
 // Register the retrieval-hint provider used by SDS-R.
 int sds_set_retrieval_hint_provider(void* ctx, SdsRetrievalHintProvider callback, void* userData);
 
-// reqJson: {"message":[..bytes..],"messageId":"..","channelId":".."}
-// Result JSON: {"message":[..bytes..]}
+// reqJson: {"message":[104,105],"messageId":"0xdeadbeef","channelId":"my-chat"}
+// Result JSON: {"message":[10,4,116,101,115,116]}
 int sds_wrap_outgoing_message(void* ctx, SdsCallBack callback, void* userData, const char* reqJson);
 
-// reqJson: {"message":[..bytes..]}
-// Result JSON: {"message":[..],"channelId":"..","missingDeps":[{"messageId":"..","retrievalHint":"<base64>"}]}
+// reqJson: {"message":[10,4,116,101,115,116]}
+// Result JSON: {"message":[104,105],"channelId":"my-chat",
+//               "missingDeps":[{"messageId":"0xaaa","retrievalHint":"aGludA=="}]}
+// retrievalHint is base64; missingDeps is empty when nothing is missing.
 int sds_unwrap_received_message(void* ctx, SdsCallBack callback, void* userData, const char* reqJson);
 
-// reqJson: {"messageIds":["..",".."],"channelId":".."}
+// reqJson: {"messageIds":["0xaaa","0xbbb"],"channelId":"my-chat"}
 int sds_mark_dependencies_met(void* ctx, SdsCallBack callback, void* userData, const char* reqJson);
 
 int sds_reset(void* ctx, SdsCallBack callback, void* userData);
