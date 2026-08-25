@@ -42,6 +42,8 @@ jobs:
 
     name: '${{ matrix.system }} / ${{ matrix.nixpkg }}'
     runs-on: ${{ matrix.runs_on }}
+    # ATTIC_TOKEN_PUBLIC only exists in the public-cache environment.
+    environment: ${{ github.ref == 'refs/heads/master' && 'public-cache' || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
