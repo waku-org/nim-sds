@@ -12,26 +12,12 @@ on:
 
 jobs:
   test:
-    name: 'test / ${{ matrix.os }}'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - uses: jiro4989/setup-nim-action@v2
-        with:
-          nim-version: '2.2.4'
-
-      - name: Install dependencies
-        run: nimble setup -l
-
-      - name: Run test suite
-        run: nimble test
+    uses: status-im/nimbus-common-workflow/.github/workflows/common.yml@main
+    with:
+      nim-versions: '["version-2-2"]'
+      test-command: |
+        nimble --useSystemNim setup
+        nimble --useSystemNim test
 
   build-linux:
     name: 'linux / ${{ matrix.task }}'
