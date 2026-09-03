@@ -1,8 +1,6 @@
 name: ci / nix
 permissions:
   contents: read
-  pull-requests: read
-  checks: write
 on:
   pull_request:
     branches: [master, release/*]
@@ -11,6 +9,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  deps:
+    name: 'deps.nix in sync with nimble.lock'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check nix/deps.nix
+        run: ./tools/check-nix-deps.sh
+
   build:
     strategy:
       fail-fast: false
