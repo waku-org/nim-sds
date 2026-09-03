@@ -1,0 +1,57 @@
+name: 'Set up Nimble'
+description: 'Install the pinned Nim and Nimble, then resolve the locked dependencies.'
+
+inputs:
+  repo-token:
+    description: 'GITHUB_TOKEN, used to avoid API rate limits while resolving the Nimble release.'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Read the pinned Nim version
+      id: nim
+      shell: bash
+      run: |
+        version=$(sed -n 's/^requires "nim == \(.*\)"$/\1/p' sds.nimble)
+        if [ -z "$version" ]; then
+          echo "Could not read the pinned Nim version from sds.nimble" >&2
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    # setup-nimble-action installs an x86_64 Nimble on every host. Left to
+    # resolve Nim itself it would hand Apple Silicon a Rosetta toolchain, and
+    # getMyCpu() would then report amd64: x86_64 .dylibs and a broken iOS build.
+    # This Nim satisfies the requires, so nimble adopts it and stays native.
+    - uses: jiro4989/setup-nim-action@v2
+      with:
+        nim-version: ${{ steps.nim.outputs.version }}
+
+    # The Nimble bundled with Nim resolves installDirs against srcDir, so a
+    # dependent that installs this package gets no library/. nightly also carries
+    # the lock-file fixes #1833 and #1838, absent from the latest release.
+    - uses: nim-lang/setup-nimble-action@v1
+      with:
+        nimble-version: 'nightly'
+        repo-token: ${{ inputs.repo-token }}
+
+    - name: Enable Git long paths
+      if: runner.os == 'Windows'
+      shell: bash
+      run: git config --global core.longpaths true
+
+    # Nim's runtime does not use the \\?\ extended-path prefix, so a deep
+    # dependency under the default TEMP still exceeds 260 chars.
+    - name: Shorten the temporary directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path C:\T | Out-Null
+        "TEMP=C:\T" >> $env:GITHUB_ENV
+        "TMP=C:\T"  >> $env:GITHUB_ENV
+
+    - name: Install dependencies
+      shell: bash
+      run: nimble setup -l
