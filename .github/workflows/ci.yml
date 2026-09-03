@@ -27,6 +27,14 @@ jobs:
         with:
           nim-version: '2.2.4'
 
+      # The nimble bundled with Nim resolves installDirs against srcDir, so a
+      # dependent installing this package gets no library/ and cannot build
+      # libsds. nightly also carries the recent lock-file fixes.
+      - uses: nim-lang/setup-nimble-action@v1
+        with:
+          nimble-version: 'nightly'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install dependencies
         run: nimble setup -l
 
@@ -50,6 +58,14 @@ jobs:
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.4'
+
+      # The nimble bundled with Nim resolves installDirs against srcDir, so a
+      # dependent installing this package gets no library/ and cannot build
+      # libsds. nightly also carries the recent lock-file fixes.
+      - uses: nim-lang/setup-nimble-action@v1
+        with:
+          nimble-version: 'nightly'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: nimble setup -l
@@ -79,6 +95,14 @@ jobs:
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.4'
+
+      # The nimble bundled with Nim resolves installDirs against srcDir, so a
+      # dependent installing this package gets no library/ and cannot build
+      # libsds. nightly also carries the recent lock-file fixes.
+      - uses: nim-lang/setup-nimble-action@v1
+        with:
+          nimble-version: 'nightly'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: nimble setup -l
@@ -111,6 +135,14 @@ jobs:
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.4'
+
+      # The nimble bundled with Nim resolves installDirs against srcDir, so a
+      # dependent installing this package gets no library/ and cannot build
+      # libsds. nightly also carries the recent lock-file fixes.
+      - uses: nim-lang/setup-nimble-action@v1
+        with:
+          nimble-version: 'nightly'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       # nim-lsquic (transitive dep via libp2p) contains boringssl submodule with
       # deeply-nested test paths. Nimble's temp dir path + those file names exceed
@@ -153,6 +185,14 @@ jobs:
         with:
           nim-version: '2.2.4'
 
+      # The nimble bundled with Nim resolves installDirs against srcDir, so a
+      # dependent installing this package gets no library/ and cannot build
+      # libsds. nightly also carries the recent lock-file fixes.
+      - uses: nim-lang/setup-nimble-action@v1
+        with:
+          nimble-version: 'nightly'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install dependencies
         run: nimble setup -l
 
@@ -179,6 +219,14 @@ jobs:
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.4'
+
+      # The nimble bundled with Nim resolves installDirs against srcDir, so a
+      # dependent installing this package gets no library/ and cannot build
+      # libsds. nightly also carries the recent lock-file fixes.
+      - uses: nim-lang/setup-nimble-action@v1
+        with:
+          nimble-version: 'nightly'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
