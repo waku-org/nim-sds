@@ -81,71 +81,39 @@ task test, "Run the test suite":
   exec "nim c -r --outdir:build tests/test_snapshot_codec.nim"
   exec "nim c -r --outdir:build tests/test_wire_compat.nim"
 
+const desktopParams =
+  "-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE"
+
+proc macArchFlags(): string =
+  ## Returns the Nim and clang flags pinning a build to the host Mac's CPU and SDK.
+  let cpu = getMyCpu()
+  let clangArch = if cpu == "amd64": "x86_64" else: cpu
+  let sdkPath = staticExec("xcrun --show-sdk-path").strip()
+  return
+    "--cpu:" & cpu & " --passC:\"-arch " & clangArch & "\" --passL:\"-arch " & clangArch &
+    "\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
+
+proc buildDesktopLib(outLibNameAndExt, `type`: string, archFlags = "") =
+  buildLibrary outLibNameAndExt, "libsds", "library/",
+    archFlags & " " & desktopParams, `type`
+
 task libsdsDynamicWindows, "Generate bindings":
-  let outLibNameAndExt = "libsds.dll"
-  let name = "libsds"
-  buildLibrary outLibNameAndExt,
-    name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
-    "dynamic"
+  buildDesktopLib "libsds.dll", "dynamic"
 
 task libsdsDynamicLinux, "Generate bindings":
-  let outLibNameAndExt = "libsds.so"
-  let name = "libsds"
-  buildLibrary outLibNameAndExt,
-    name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
-    "dynamic"
+  buildDesktopLib "libsds.so", "dynamic"
 
 task libsdsDynamicMac, "Generate bindings":
-  let outLibNameAndExt = "libsds.dylib"
-  let name = "libsds"
-
-  let cpu = getMyCpu()
-  let clangArch = if cpu == "amd64": "x86_64" else: cpu
-  let sdkPath = staticExec("xcrun --show-sdk-path").strip()
-  let archFlags =
-    "--cpu:" & cpu & " --passC:\"-arch " & clangArch & "\" --passL:\"-arch " & clangArch &
-    "\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
-  buildLibrary outLibNameAndExt,
-    name,
-    "library/",
-    archFlags &
-      " -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE",
-    "dynamic"
+  buildDesktopLib "libsds.dylib", "dynamic", macArchFlags()
 
 task libsdsStaticWindows, "Generate bindings":
-  let outLibNameAndExt = "libsds.lib"
-  let name = "libsds"
-  buildLibrary outLibNameAndExt,
-    name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
-    "static"
+  buildDesktopLib "libsds.lib", "static"
 
 task libsdsStaticLinux, "Generate bindings":
-  let outLibNameAndExt = "libsds.a"
-  let name = "libsds"
-  buildLibrary outLibNameAndExt,
-    name, "library/",
-    """-d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE """,
-    "static"
+  buildDesktopLib "libsds.a", "static"
 
 task libsdsStaticMac, "Generate bindings":
-  let outLibNameAndExt = "libsds.a"
-  let name = "libsds"
-
-  let cpu = getMyCpu()
-  let clangArch = if cpu == "amd64": "x86_64" else: cpu
-  let sdkPath = staticExec("xcrun --show-sdk-path").strip()
-  let archFlags =
-    "--cpu:" & cpu & " --passC:\"-arch " & clangArch & "\" --passL:\"-arch " & clangArch &
-    "\" --passC:\"-isysroot " & sdkPath & "\" --passL:\"-isysroot " & sdkPath & "\""
-  buildLibrary outLibNameAndExt,
-    name,
-    "library/",
-    archFlags &
-      " -d:chronicles_line_numbers --warning:Deprecated:off --warning:UnusedImport:on -d:chronicles_log_level=TRACE",
-    "static"
+  buildDesktopLib "libsds.a", "static", macArchFlags()
 
 # Build Mobile iOS
 proc buildMobileIOS(srcDir = ".", sdkPath = "") =
@@ -174,15 +142,11 @@ proc buildMobileIOS(srcDir = ".", sdkPath = "") =
 
   # 2) Compile all generated C files to object files with hidden visibility
   # This prevents symbol conflicts with other Nim libraries (e.g., libnim_status_client)
-  # Locate nimbase.h: try next to the nim binary first (jiro4989/setup-nim-action
-  # puts nim at .nim_runtime/bin/nim with lib/ alongside), then fall back to the
-  # choosenim toolchain directory (~/.choosenim/toolchains/nim-VERSION/lib/).
+  # nimbase.h lives in lib/, next to the resolved compiler's bin/.
   let (nimBin, _) = gorgeEx("which nim")
-  let nimLibFromBin = parentDir(parentDir(nimBin.strip())) / "lib"
-  let nimLibChoosenim = getHomeDir() / ".choosenim/toolchains/nim-" & NimVersion & "/lib"
-  let nimLibDir =
-    if fileExists(nimLibFromBin / "nimbase.h"): nimLibFromBin
-    else: nimLibChoosenim
+  let nimLibDir = parentDir(parentDir(nimBin.strip())) / "lib"
+  if not fileExists(nimLibDir / "nimbase.h"):
+    quit "Error: nimbase.h not found in " & nimLibDir
   let clangFlags =
     "-arch " & clangArch & " -isysroot " & sdkPath & " -I" & nimLibDir &
     " -fembed-bitcode -miphoneos-version-min=16.2 -O2" & " -fvisibility=hidden"
@@ -315,11 +279,11 @@ task libsdsAndroidArm, "Build Android arm bindings":
 
 task libsds, "Build the shared library for the current platform":
   when defined(macosx):
-    exec "nimble libsdsDynamicMac"
+    buildDesktopLib "libsds.dylib", "dynamic", macArchFlags()
   elif defined(windows):
-    exec "nimble libsdsDynamicWindows"
+    buildDesktopLib "libsds.dll", "dynamic"
   else:
-    exec "nimble libsdsDynamicLinux"
+    buildDesktopLib "libsds.so", "dynamic"
 
 task clean, "Remove build artifacts":
   if dirExists "build":

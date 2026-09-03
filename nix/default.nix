@@ -109,8 +109,10 @@ in stdenv.mkDerivation {
     cp ${nimblePaths} ./nimble.paths
   '';
 
+  # --useSystemNim: the sandbox has no network, so nimble must not try to fetch
+  # the Nim pinned in nimble.lock. Nix supplies the compiler instead.
   buildPhase = lib.concatMapStringsSep "\n" (target: ''
-    nimble --verbose ${target}
+    nimble --useSystemNim --verbose ${target}
   '') targets;
 
   installPhase = let

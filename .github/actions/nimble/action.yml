@@ -1,0 +1,39 @@
+name: 'Set up Nimble'
+description: 'Install Nimble and resolve the locked dependencies, including the pinned Nim compiler.'
+
+inputs:
+  repo-token:
+    description: 'GITHUB_TOKEN, used to avoid API rate limits while resolving the Nimble release.'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    # The Nimble bundled with Nim resolves installDirs against srcDir, so a
+    # dependent that installs this package gets no library/. nightly also carries
+    # the lock-file fixes #1833 and #1838, absent from the latest release.
+    - uses: nim-lang/setup-nimble-action@v1
+      with:
+        nimble-version: 'nightly'
+        repo-token: ${{ inputs.repo-token }}
+
+    - name: Enable Git long paths
+      if: runner.os == 'Windows'
+      shell: bash
+      run: git config --global core.longpaths true
+
+    # Nim's runtime does not use the \\?\ extended-path prefix, so a deep
+    # dependency under the default TEMP still exceeds 260 chars.
+    - name: Shorten the temporary directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path C:\T | Out-Null
+        "TEMP=C:\T" >> $env:GITHUB_ENV
+        "TMP=C:\T"  >> $env:GITHUB_ENV
+
+    # Resolves every dependency from nimble.lock, the Nim compiler included.
+    - name: Install dependencies
+      shell: bash
+      run: nimble setup -l
