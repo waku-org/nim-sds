@@ -1,5 +1,5 @@
 name: 'Set up Nimble'
-description: 'Install Nimble and resolve the locked dependencies, including the pinned Nim compiler.'
+description: 'Install the pinned Nim and Nimble, then resolve the locked dependencies.'
 
 inputs:
   repo-token:
@@ -10,6 +10,25 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Read the pinned Nim version
+      id: nim
+      shell: bash
+      run: |
+        version=$(sed -n 's/^requires "nim == \(.*\)"$/\1/p' sds.nimble)
+        if [ -z "$version" ]; then
+          echo "Could not read the pinned Nim version from sds.nimble" >&2
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    # setup-nimble-action installs an x86_64 Nimble on every host. Left to
+    # resolve Nim itself it would hand Apple Silicon a Rosetta toolchain, and
+    # getMyCpu() would then report amd64: x86_64 .dylibs and a broken iOS build.
+    # This Nim satisfies the requires, so nimble adopts it and stays native.
+    - uses: jiro4989/setup-nim-action@v2
+      with:
+        nim-version: ${{ steps.nim.outputs.version }}
+
     # The Nimble bundled with Nim resolves installDirs against srcDir, so a
     # dependent that installs this package gets no library/. nightly also carries
     # the lock-file fixes #1833 and #1838, absent from the latest release.
@@ -33,7 +52,6 @@ runs:
         "TEMP=C:\T" >> $env:GITHUB_ENV
         "TMP=C:\T"  >> $env:GITHUB_ENV
 
-    # Resolves every dependency from nimble.lock, the Nim compiler included.
     - name: Install dependencies
       shell: bash
       run: nimble setup -l
